@@ -313,6 +313,7 @@ class SqlAlchemyBatchData(BatchData):
         """  # noqa: E501 # FIXME CoP
         if use_quoted_name:
             table_name = sqlalchemy.quoted_name(table_name, quote=True)
+                
         if dialect == GXSqlDialect.BIGQUERY:
             if schema_name is not None:
                 logger.warning(

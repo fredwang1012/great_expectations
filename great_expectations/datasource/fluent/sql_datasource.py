@@ -1176,7 +1176,6 @@ class TableAsset(_SQLAsset):
             schema_name = self.datasource.schema_
             LOGGER.debug(f"Auto-inferred schema '{schema_name}' from datasource for table '{self.table_name}'")
         
-        # The table_name and schema_name already have proper quoting applied by the validators
         return sa.table(self.table_name, schema=schema_name)
 
     @override
