@@ -209,6 +209,35 @@ class DatabricksTableAsset(SqlTableAsset):
                 )
         return schema_name
 
+    @override 
+    def _create_batch_spec_kwargs(self) -> dict[str, Any]:
+        """Override to handle quoted_name objects properly for Databricks."""
+        from typing import Any
+        
+        # Use fallback logic like qualified_name and as_selectable
+        schema_name = self.schema_name
+        if schema_name is None and hasattr(self.datasource, 'schema_') and self.datasource.schema_:
+            schema_name = self.datasource.schema_
+            
+        # Extract raw names from quoted_name objects to avoid double-quote stringification
+        from great_expectations.compatibility import sqlalchemy
+        
+        table_name_raw = self.table_name
+        if sqlalchemy.quoted_name and isinstance(self.table_name, sqlalchemy.quoted_name):
+            table_name_raw = self.table_name._value
+        
+        schema_name_raw = schema_name
+        if schema_name and sqlalchemy.quoted_name and isinstance(schema_name, sqlalchemy.quoted_name):
+            schema_name_raw = schema_name._value
+            
+        return {
+            "type": "table",
+            "data_asset_name": self.name,
+            "table_name": str(table_name_raw),
+            "schema_name": str(schema_name_raw) if schema_name_raw else None,
+            "batch_identifiers": {},
+        }
+
     @staticmethod
     @override
     def _is_bracketed_by_quotes(target: str) -> bool:
