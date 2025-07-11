@@ -213,6 +213,9 @@ class DatabricksTableAsset(SqlTableAsset):
     def _create_batch_spec_kwargs(self) -> dict[str, Any]:
         """Override to handle quoted_name objects properly for Databricks."""
         from typing import Any
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         # Use fallback logic like qualified_name and as_selectable
         schema_name = self.schema_name
@@ -222,41 +225,59 @@ class DatabricksTableAsset(SqlTableAsset):
         # Extract raw names from quoted_name objects to avoid double-quote stringification
         from great_expectations.compatibility import sqlalchemy
         
+        logger.warning(f"DATABRICKS DEBUG: self.table_name = {self.table_name!r}, type = {type(self.table_name)}")
+        if schema_name:
+            logger.warning(f"DATABRICKS DEBUG: schema_name = {schema_name!r}, type = {type(schema_name)}")
+        
         def extract_raw_name(name):
             """Extract the raw name from a quoted_name object or return the string as-is."""
             if name is None:
                 return None
             if sqlalchemy.quoted_name and isinstance(name, sqlalchemy.quoted_name):
+                logger.warning(f"DATABRICKS DEBUG: Processing quoted_name: {name!r}")
                 # Try different ways to get the raw value from quoted_name
                 if hasattr(name, 'quote') and hasattr(name, '__str__'):
                     # quoted_name is a string subclass, so we need to extract the unquoted version
                     # The string representation includes quotes, so we'll get the original value
                     str_val = str(name)
+                    logger.warning(f"DATABRICKS DEBUG: str(quoted_name) = '{str_val}'")
                     # If it's quoted, remove the quotes
                     if (str_val.startswith('"') and str_val.endswith('"')) or \
                        (str_val.startswith("'") and str_val.endswith("'")):
-                        return str_val[1:-1]
+                        result = str_val[1:-1]
+                        logger.warning(f"DATABRICKS DEBUG: Stripped quotes, result = '{result}'")
+                        return result
                     elif str_val.startswith('`') and str_val.endswith('`'):
-                        return str_val[1:-1]
+                        result = str_val[1:-1]
+                        logger.warning(f"DATABRICKS DEBUG: Stripped backticks, result = '{result}'")
+                        return result
                     else:
                         # Not quoted in string form, just return it
+                        logger.warning(f"DATABRICKS DEBUG: No quotes to strip, result = '{str_val}'")
                         return str_val
                 else:
                     # Fall back to string conversion
-                    return str(name)
+                    result = str(name)
+                    logger.warning(f"DATABRICKS DEBUG: Fallback str(), result = '{result}'")
+                    return result
             else:
-                return str(name)
+                result = str(name) if name is not None else None
+                logger.warning(f"DATABRICKS DEBUG: Not quoted_name, result = '{result}'")
+                return result
         
         table_name_raw = extract_raw_name(self.table_name)
         schema_name_raw = extract_raw_name(schema_name)
-            
-        return {
+        
+        batch_spec = {
             "type": "table",
             "data_asset_name": self.name,
             "table_name": table_name_raw,
             "schema_name": schema_name_raw,
             "batch_identifiers": {},
         }
+        
+        logger.warning(f"DATABRICKS DEBUG: Final batch_spec = {batch_spec}")
+        return batch_spec
 
     @staticmethod
     @override
