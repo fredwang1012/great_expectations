@@ -159,12 +159,14 @@ class DatabricksTableAsset(SqlTableAsset):
             # Check if the table name needs special escaping for Databricks
             # This includes names that start with digits or contain special characters
             table_name_str = str(table_name)
+            starts_with_digit = bool(re.match(r"^\d", table_name_str))
+            has_special_chars = bool(re.search(r"[.\s\-#@]", table_name_str))
             needs_quoting = (
                 table_name_is_quoted or
-                re.match(r"^\d", table_name_str) or
-                re.search(r"[.\s\-#@]", table_name_str)
+                starts_with_digit or
+                has_special_chars
             )
-            logger.warning(f"VALIDATOR DEBUG: needs_quoting={needs_quoting} (starts_with_digit={bool(re.match(r'^\d', table_name_str))}, has_special_chars={bool(re.search(r'[.\s\-#@]', table_name_str))})")
+            logger.warning(f"VALIDATOR DEBUG: needs_quoting={needs_quoting} (starts_with_digit={starts_with_digit}, has_special_chars={has_special_chars})")
 
             if needs_quoting:
                 # For Databricks, include backticks in the value so SQLAlchemy uses them
