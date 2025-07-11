@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, ClassVar, List, Literal, Type, Union, overload
 from urllib import parse
 
@@ -139,8 +140,6 @@ class DatabricksTableAsset(SqlTableAsset):
     @pydantic.validator("table_name")
     @override
     def _resolve_quoted_name(cls, table_name: str) -> str | quoted_name:
-        import re
-
         table_name_is_quoted: bool = cls._is_bracketed_by_quotes(table_name)
 
         from great_expectations.compatibility import sqlalchemy
@@ -159,21 +158,24 @@ class DatabricksTableAsset(SqlTableAsset):
             )
 
             if needs_quoting:
-                # For Databricks, return the table name with backticks pre-applied
-                # This bypasses SQLAlchemy's quote handling entirely
+                # Remove any existing quotes and add them back using sqlalchemy.quoted_name
                 clean_table_name = table_name_str.strip('"').strip("'").strip("`")
-                return f"`{clean_table_name}`"
+                return sqlalchemy.quoted_name(
+                    value=clean_table_name,
+                    quote=True,
+                )
             else:
                 # Standard table that doesn't need special escaping
-                return table_name_str
+                return sqlalchemy.quoted_name(
+                    value=table_name,
+                    quote=False,
+                )
         return table_name
 
     @pydantic.validator("schema_name")
     def _resolve_quoted_schema_name(cls, schema_name: str | None) -> str | quoted_name | None:
         if schema_name is None:
             return schema_name
-
-        import re
 
         schema_name_is_quoted: bool = cls._is_bracketed_by_quotes(schema_name)
 
@@ -193,13 +195,18 @@ class DatabricksTableAsset(SqlTableAsset):
             )
 
             if needs_quoting:
-                # For Databricks, return the schema name with backticks pre-applied
-                # This bypasses SQLAlchemy's quote handling entirely
+                # Remove any existing quotes and add them back using sqlalchemy.quoted_name
                 clean_schema_name = schema_name_str.strip('"').strip("'").strip("`")
-                return f"`{clean_schema_name}`"
+                return sqlalchemy.quoted_name(
+                    value=clean_schema_name,
+                    quote=True,
+                )
             else:
                 # Standard schema that doesn't need special escaping
-                return schema_name_str
+                return sqlalchemy.quoted_name(
+                    value=schema_name,
+                    quote=False,
+                )
         return schema_name
 
     @staticmethod
@@ -239,29 +246,6 @@ class DatabricksSQLDatasource(SQLDatasource):
     # https://peps.python.org/pep-0526/#class-and-instance-variable-annotations
     _TableAsset: Type[SqlTableAsset] = pydantic.PrivateAttr(DatabricksTableAsset)
 
-    def _quote_databricks_identifier(self, identifier: str | None) -> str | None:
-        """Apply Databricks-specific quoting to table/schema identifiers."""
-        if identifier is None:
-            return identifier
-            
-        import re
-        
-        identifier_str = str(identifier)
-        
-        # Check if the identifier needs special escaping for Databricks
-        needs_quoting = (
-            identifier_str.startswith("`") and identifier_str.endswith("`") or
-            re.match(r"^\d", identifier_str) or
-            re.search(r"[.\s\-#@]", identifier_str)
-        )
-        
-        if needs_quoting:
-            # Remove any existing quotes and add backticks
-            clean_identifier = identifier_str.strip('"').strip("'").strip("`")
-            return f"`{clean_identifier}`"
-        
-        return identifier_str
-
     @override
     def test_connection(self, test_assets: bool = True) -> None:
         try:
@@ -300,29 +284,3 @@ class DatabricksSQLDatasource(SQLDatasource):
         # Databricks connection is a bit finicky - the http_path portion of the connection string needs to be passed in connect_args  # noqa: E501 # FIXME CoP
         connect_args = {"http_path": http_path}
         return sa.create_engine(connection_string, connect_args=connect_args, **kwargs)
-
-    @override
-    def get_batch_list_from_batch_request(self, batch_request):
-        """Override to apply Databricks-specific table name quoting to batch specs."""
-        batch_list = super().get_batch_list_from_batch_request(batch_request)
-        
-        # Apply Databricks quoting to table and schema names in batch specs
-        for batch in batch_list:
-            if hasattr(batch, 'batch_spec') and batch.batch_spec:
-                batch_spec = batch.batch_spec
-                
-                # Quote table name if present
-                if 'table_name' in batch_spec:
-                    original_table_name = batch_spec['table_name']
-                    quoted_table_name = self._quote_databricks_identifier(original_table_name)
-                    if quoted_table_name != original_table_name:
-                        batch_spec['table_name'] = quoted_table_name
-                
-                # Quote schema name if present  
-                if 'schema_name' in batch_spec:
-                    original_schema_name = batch_spec['schema_name']
-                    quoted_schema_name = self._quote_databricks_identifier(original_schema_name)
-                    if quoted_schema_name != original_schema_name:
-                        batch_spec['schema_name'] = quoted_schema_name
-        
-        return batch_list
