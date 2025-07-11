@@ -140,12 +140,20 @@ class DatabricksTableAsset(SqlTableAsset):
     @pydantic.validator("table_name")
     @override
     def _resolve_quoted_name(cls, table_name: str) -> str | quoted_name:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.warning(f"VALIDATOR DEBUG: _resolve_quoted_name called with table_name={table_name!r}")
+        
         table_name_is_quoted: bool = cls._is_bracketed_by_quotes(table_name)
+        logger.warning(f"VALIDATOR DEBUG: table_name_is_quoted={table_name_is_quoted}")
 
         from great_expectations.compatibility import sqlalchemy
 
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function] # FIXME CoP
+            logger.warning(f"VALIDATOR DEBUG: sqlalchemy.quoted_name is available")
+            
             if isinstance(table_name, sqlalchemy.quoted_name):
+                logger.warning(f"VALIDATOR DEBUG: table_name is already quoted_name, returning as-is")
                 return table_name
 
             # Check if the table name needs special escaping for Databricks
@@ -156,20 +164,28 @@ class DatabricksTableAsset(SqlTableAsset):
                 re.match(r"^\d", table_name_str) or
                 re.search(r"[.\s\-#@]", table_name_str)
             )
+            logger.warning(f"VALIDATOR DEBUG: needs_quoting={needs_quoting} (starts_with_digit={bool(re.match(r'^\d', table_name_str))}, has_special_chars={bool(re.search(r'[.\s\-#@]', table_name_str))})")
 
             if needs_quoting:
                 # For Databricks, include backticks in the value so SQLAlchemy uses them
                 clean_table_name = table_name_str.strip('"').strip("'").strip("`")
-                return sqlalchemy.quoted_name(
+                result = sqlalchemy.quoted_name(
                     value=f"`{clean_table_name}`",
                     quote=False,  # Don't let SQLAlchemy add more quotes
                 )
+                logger.warning(f"VALIDATOR DEBUG: Created quoted_name with backticks: {result!r}")
+                return result
             else:
                 # Standard table that doesn't need special escaping
-                return sqlalchemy.quoted_name(
+                result = sqlalchemy.quoted_name(
                     value=table_name,
                     quote=False,
                 )
+                logger.warning(f"VALIDATOR DEBUG: Created standard quoted_name: {result!r}")
+                return result
+        else:
+            logger.warning(f"VALIDATOR DEBUG: sqlalchemy.quoted_name not available, returning plain string")
+        
         return table_name
 
     @pydantic.validator("schema_name")
