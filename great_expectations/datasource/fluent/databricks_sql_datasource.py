@@ -160,10 +160,11 @@ class DatabricksTableAsset(SqlTableAsset):
 
             if needs_quoting:
                 # Remove any existing quotes and add them back using sqlalchemy.quoted_name
+                # For Databricks, explicitly use backticks instead of default quotes
                 clean_table_name = table_name_str.strip('"').strip("'").strip("`")
                 return sqlalchemy.quoted_name(
                     value=clean_table_name,
-                    quote=True,
+                    quote='`',  # Force backticks for Databricks
                 )
             else:
                 # Standard table that doesn't need special escaping
@@ -199,10 +200,11 @@ class DatabricksTableAsset(SqlTableAsset):
 
             if needs_quoting:
                 # Remove any existing quotes and add them back using sqlalchemy.quoted_name
+                # For Databricks, explicitly use backticks instead of default quotes
                 clean_schema_name = schema_name_str.strip('"').strip("'").strip("`")
                 return sqlalchemy.quoted_name(
                     value=clean_schema_name,
-                    quote=True,
+                    quote='`',  # Force backticks for Databricks
                 )
             else:
                 # Standard schema that doesn't need special escaping
