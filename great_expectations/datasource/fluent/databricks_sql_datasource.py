@@ -144,21 +144,18 @@ class DatabricksTableAsset(SqlTableAsset):
         logger = logging.getLogger(__name__)
         logger.warning(f"VALIDATOR DEBUG: _resolve_quoted_name called with table_name={table_name!r}")
         
-        table_name_is_quoted: bool = cls._is_bracketed_by_quotes(table_name)
-        logger.warning(f"VALIDATOR DEBUG: table_name_is_quoted={table_name_is_quoted}")
-
         from great_expectations.compatibility import sqlalchemy
 
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function] # FIXME CoP
             logger.warning(f"VALIDATOR DEBUG: sqlalchemy.quoted_name is available")
             
-            if isinstance(table_name, sqlalchemy.quoted_name):
-                logger.warning(f"VALIDATOR DEBUG: table_name is already quoted_name, returning as-is")
-                return table_name
+            # Always check the actual string value, regardless of whether it's already quoted_name
+            table_name_str = str(table_name)
+            table_name_is_quoted: bool = cls._is_bracketed_by_quotes(table_name_str)
+            logger.warning(f"VALIDATOR DEBUG: table_name_is_quoted={table_name_is_quoted}")
 
             # Check if the table name needs special escaping for Databricks
             # This includes names that start with digits or contain special characters
-            table_name_str = str(table_name)
             starts_with_digit = bool(re.match(r"^\d", table_name_str))
             has_special_chars = bool(re.search(r"[.\s\-#@]", table_name_str))
             needs_quoting = (
@@ -179,12 +176,16 @@ class DatabricksTableAsset(SqlTableAsset):
                 return result
             else:
                 # Standard table that doesn't need special escaping
-                result = sqlalchemy.quoted_name(
-                    value=table_name,
-                    quote=False,
-                )
-                logger.warning(f"VALIDATOR DEBUG: Created standard quoted_name: {result!r}")
-                return result
+                if isinstance(table_name, sqlalchemy.quoted_name):
+                    logger.warning(f"VALIDATOR DEBUG: table_name is already standard quoted_name, returning as-is")
+                    return table_name
+                else:
+                    result = sqlalchemy.quoted_name(
+                        value=table_name,
+                        quote=False,
+                    )
+                    logger.warning(f"VALIDATOR DEBUG: Created standard quoted_name: {result!r}")
+                    return result
         else:
             logger.warning(f"VALIDATOR DEBUG: sqlalchemy.quoted_name not available, returning plain string")
         
