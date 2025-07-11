@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import re
 from typing import TYPE_CHECKING, ClassVar, List, Literal, Type, Union, overload
 from urllib import parse
@@ -141,52 +142,89 @@ class DatabricksTableAsset(SqlTableAsset):
     @override
     def _resolve_quoted_name(cls, table_name: str) -> str | quoted_name:
         """Resolve quoted names and handle Databricks backtick notation."""
+        logger = logging.getLogger(__name__)
+        logger.debug(f"DATABRICKS DEBUG: _resolve_quoted_name called with table_name={table_name!r} (type: {type(table_name)})")
+        
         from great_expectations.compatibility import sqlalchemy
 
         # If it's already a quoted_name, return as-is
         if sqlalchemy.quoted_name and isinstance(table_name, sqlalchemy.quoted_name):
+            logger.debug(f"DATABRICKS DEBUG: table_name is already quoted_name, returning as-is: {table_name!r}")
             return table_name
 
         # Check if the table name is quoted/bracketed (including Databricks backticks)
         table_name_is_quoted = cls._is_bracketed_by_quotes(table_name)
+        logger.debug(f"DATABRICKS DEBUG: table_name_is_quoted={table_name_is_quoted}")
 
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function]
+            logger.debug("DATABRICKS DEBUG: sqlalchemy.quoted_name is available")
+            
             if table_name_is_quoted:
                 # Handle different quote types - strip them and mark as quoted
                 clean_table_name = table_name.strip('"').strip("'").strip("`")
-                return sqlalchemy.quoted_name(value=clean_table_name, quote=True)
+                result = sqlalchemy.quoted_name(value=clean_table_name, quote=True)
+                logger.debug(f"DATABRICKS DEBUG: Stripped existing quotes, created quoted_name(value={clean_table_name!r}, quote=True) -> {result!r}")
+                return result
 
             # Check if Databricks backticks are needed based on content
-            if cls._needs_databricks_backticks(table_name):
-                return sqlalchemy.quoted_name(value=table_name, quote=True)
+            needs_backticks = cls._needs_databricks_backticks(table_name)
+            logger.debug(f"DATABRICKS DEBUG: _needs_databricks_backticks returned {needs_backticks}")
+            
+            if needs_backticks:
+                result = sqlalchemy.quoted_name(value=table_name, quote=True)
+                logger.debug(f"DATABRICKS DEBUG: Created quoted_name(value={table_name!r}, quote=True) -> {result!r}")
+                return result
+            else:
+                logger.debug(f"DATABRICKS DEBUG: No special quoting needed, returning plain table_name: {table_name!r}")
+        else:
+            logger.debug("DATABRICKS DEBUG: sqlalchemy.quoted_name not available, returning plain string")
 
+        logger.debug(f"DATABRICKS DEBUG: Returning unchanged table_name: {table_name!r}")
         return table_name
 
     @pydantic.validator("schema_name", pre=True)
     def _resolve_schema_quoted_name(cls, schema_name: str | None) -> str | quoted_name | None:
         """Resolve quoted names for schema and handle Databricks backtick notation."""
+        logger = logging.getLogger(__name__)
+        logger.debug(f"DATABRICKS DEBUG: _resolve_schema_quoted_name called with schema_name={schema_name!r} (type: {type(schema_name)})")
+        
         if schema_name is None:
+            logger.debug("DATABRICKS DEBUG: schema_name is None, returning None")
             return None
 
         from great_expectations.compatibility import sqlalchemy
 
         # If it's already a quoted_name, return as-is
         if sqlalchemy.quoted_name and isinstance(schema_name, sqlalchemy.quoted_name):
+            logger.debug(f"DATABRICKS DEBUG: schema_name is already quoted_name, returning as-is: {schema_name!r}")
             return schema_name
 
         # Check if the schema name is quoted/bracketed
         schema_name_is_quoted = cls._is_bracketed_by_quotes(schema_name)
+        logger.debug(f"DATABRICKS DEBUG: schema_name_is_quoted={schema_name_is_quoted}")
 
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function]
+            logger.debug("DATABRICKS DEBUG: sqlalchemy.quoted_name is available for schema")
+            
             if schema_name_is_quoted:
                 # Handle different quote types - strip them and mark as quoted
                 clean_schema_name = schema_name.strip('"').strip("'").strip("`")
-                return sqlalchemy.quoted_name(value=clean_schema_name, quote=True)
+                result = sqlalchemy.quoted_name(value=clean_schema_name, quote=True)
+                logger.debug(f"DATABRICKS DEBUG: Stripped existing quotes from schema, created quoted_name(value={clean_schema_name!r}, quote=True) -> {result!r}")
+                return result
 
             # Check if Databricks backticks are needed based on content
-            if cls._needs_databricks_backticks(schema_name):
-                return sqlalchemy.quoted_name(value=schema_name, quote=True)
+            needs_backticks = cls._needs_databricks_backticks(schema_name)
+            logger.debug(f"DATABRICKS DEBUG: _needs_databricks_backticks for schema returned {needs_backticks}")
+            
+            if needs_backticks:
+                result = sqlalchemy.quoted_name(value=schema_name, quote=True)
+                logger.debug(f"DATABRICKS DEBUG: Created schema quoted_name(value={schema_name!r}, quote=True) -> {result!r}")
+                return result
+        else:
+            logger.debug("DATABRICKS DEBUG: sqlalchemy.quoted_name not available for schema, returning plain string")
 
+        logger.debug(f"DATABRICKS DEBUG: Returning unchanged schema_name: {schema_name!r}")
         return schema_name
 
     @staticmethod
@@ -200,15 +238,24 @@ class DatabricksTableAsset(SqlTableAsset):
         - Are reserved keywords
         """
         import re
+        logger = logging.getLogger(__name__)
+        logger.debug(f"DATABRICKS DEBUG: _needs_databricks_backticks checking name={name!r}")
 
         # Check if name starts with a number
-        if re.match(r"^\d", name):
+        starts_with_digit = bool(re.match(r"^\d", name))
+        logger.debug(f"DATABRICKS DEBUG: starts_with_digit={starts_with_digit}")
+        if starts_with_digit:
+            logger.debug(f"DATABRICKS DEBUG: Name starts with digit, needs backticks: {name!r}")
             return True
 
         # Check if name contains special characters that need escaping
-        if re.search(r"[.\s\-#@]", name):
+        has_special_chars = bool(re.search(r"[.\s\-#@]", name))
+        logger.debug(f"DATABRICKS DEBUG: has_special_chars={has_special_chars}")
+        if has_special_chars:
+            logger.debug(f"DATABRICKS DEBUG: Name has special characters, needs backticks: {name!r}")
             return True
 
+        logger.debug(f"DATABRICKS DEBUG: Name does not need backticks: {name!r}")
         return False
 
     @staticmethod
@@ -225,17 +272,67 @@ class DatabricksTableAsset(SqlTableAsset):
         Returns:
             True if the target string is bracketed by quotes.
         """
+        logger = logging.getLogger(__name__)
+        logger.debug(f"DATABRICKS DEBUG: _is_bracketed_by_quotes checking target={target!r}")
+        
         # Check standard quotes
         from great_expectations.datasource.fluent.sql_datasource import DEFAULT_QUOTE_CHARACTERS
         for quote in DEFAULT_QUOTE_CHARACTERS:
             if target.startswith(quote) and target.endswith(quote):
+                logger.debug(f"DATABRICKS DEBUG: Found standard quotes '{quote}' around target: {target!r}")
                 return True
 
         # Check Databricks backticks
         if target.startswith("`") and target.endswith("`"):
+            logger.debug(f"DATABRICKS DEBUG: Found Databricks backticks around target: {target!r}")
             return True
 
+        logger.debug(f"DATABRICKS DEBUG: Target is not bracketed by quotes: {target!r}")
         return False
+
+    @override 
+    def _create_batch_spec_kwargs(self) -> dict[str, Any]:
+        """Override to add debug logging for batch spec creation."""
+        from typing import Any
+        logger = logging.getLogger(__name__)
+        
+        logger.debug(f"DATABRICKS DEBUG: _create_batch_spec_kwargs called for asset '{self.name}'")
+        logger.debug(f"DATABRICKS DEBUG: self.table_name={self.table_name!r} (type: {type(self.table_name)})")
+        logger.debug(f"DATABRICKS DEBUG: self.schema_name={self.schema_name!r} (type: {type(self.schema_name)})")
+        
+        # Use fallback logic like qualified_name and as_selectable
+        schema_name = self.schema_name
+        if schema_name is None and hasattr(self.datasource, 'schema_') and self.datasource.schema_:
+            schema_name = self.datasource.schema_
+            logger.debug(f"DATABRICKS DEBUG: Using datasource schema fallback: {schema_name!r}")
+        
+        table_name_str = str(self.table_name)
+        schema_name_str = str(schema_name) if schema_name else None
+        
+        logger.debug(f"DATABRICKS DEBUG: Final batch spec values - table_name_str={table_name_str!r}, schema_name_str={schema_name_str!r}")
+        
+        result = {
+            "type": "table",
+            "data_asset_name": self.name,
+            "table_name": table_name_str,
+            "schema_name": schema_name_str,
+            "batch_identifiers": {},
+        }
+        
+        logger.debug(f"DATABRICKS DEBUG: _create_batch_spec_kwargs returning: {result}")
+        return result
+
+    @override
+    def as_selectable(self) -> sqlalchemy.Selectable:
+        """Override to add debug logging for selectable creation."""
+        logger = logging.getLogger(__name__)
+        logger.debug(f"DATABRICKS DEBUG: as_selectable called for asset '{self.name}'")
+        logger.debug(f"DATABRICKS DEBUG: Using table_name={self.table_name!r}, schema_name={self.schema_name!r}")
+        
+        # Call parent implementation
+        result = super().as_selectable()
+        logger.debug(f"DATABRICKS DEBUG: as_selectable created selectable: {result}")
+        return result
 
 
 @public_api
