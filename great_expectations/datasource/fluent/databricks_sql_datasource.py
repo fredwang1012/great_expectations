@@ -159,19 +159,13 @@ class DatabricksTableAsset(SqlTableAsset):
             )
 
             if needs_quoting:
-                # Remove any existing quotes and add them back using sqlalchemy.quoted_name
-                # For Databricks, explicitly use backticks instead of default quotes
+                # For Databricks, return the table name with backticks pre-applied
+                # This bypasses SQLAlchemy's quote handling entirely
                 clean_table_name = table_name_str.strip('"').strip("'").strip("`")
-                return sqlalchemy.quoted_name(
-                    value=clean_table_name,
-                    quote='`',  # Force backticks for Databricks
-                )
+                return f"`{clean_table_name}`"
             else:
                 # Standard table that doesn't need special escaping
-                return sqlalchemy.quoted_name(
-                    value=table_name,
-                    quote=False,
-                )
+                return table_name_str
         return table_name
 
     @pydantic.validator("schema_name")
@@ -199,19 +193,13 @@ class DatabricksTableAsset(SqlTableAsset):
             )
 
             if needs_quoting:
-                # Remove any existing quotes and add them back using sqlalchemy.quoted_name
-                # For Databricks, explicitly use backticks instead of default quotes
+                # For Databricks, return the schema name with backticks pre-applied
+                # This bypasses SQLAlchemy's quote handling entirely
                 clean_schema_name = schema_name_str.strip('"').strip("'").strip("`")
-                return sqlalchemy.quoted_name(
-                    value=clean_schema_name,
-                    quote='`',  # Force backticks for Databricks
-                )
+                return f"`{clean_schema_name}`"
             else:
                 # Standard schema that doesn't need special escaping
-                return sqlalchemy.quoted_name(
-                    value=schema_name,
-                    quote=False,
-                )
+                return schema_name_str
         return schema_name
 
     @staticmethod
