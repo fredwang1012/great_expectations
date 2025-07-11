@@ -222,19 +222,39 @@ class DatabricksTableAsset(SqlTableAsset):
         # Extract raw names from quoted_name objects to avoid double-quote stringification
         from great_expectations.compatibility import sqlalchemy
         
-        table_name_raw = self.table_name
-        if sqlalchemy.quoted_name and isinstance(self.table_name, sqlalchemy.quoted_name):
-            table_name_raw = self.table_name._value
+        def extract_raw_name(name):
+            """Extract the raw name from a quoted_name object or return the string as-is."""
+            if name is None:
+                return None
+            if sqlalchemy.quoted_name and isinstance(name, sqlalchemy.quoted_name):
+                # Try different ways to get the raw value from quoted_name
+                if hasattr(name, 'quote') and hasattr(name, '__str__'):
+                    # quoted_name is a string subclass, so we need to extract the unquoted version
+                    # The string representation includes quotes, so we'll get the original value
+                    str_val = str(name)
+                    # If it's quoted, remove the quotes
+                    if (str_val.startswith('"') and str_val.endswith('"')) or \
+                       (str_val.startswith("'") and str_val.endswith("'")):
+                        return str_val[1:-1]
+                    elif str_val.startswith('`') and str_val.endswith('`'):
+                        return str_val[1:-1]
+                    else:
+                        # Not quoted in string form, just return it
+                        return str_val
+                else:
+                    # Fall back to string conversion
+                    return str(name)
+            else:
+                return str(name)
         
-        schema_name_raw = schema_name
-        if schema_name and sqlalchemy.quoted_name and isinstance(schema_name, sqlalchemy.quoted_name):
-            schema_name_raw = schema_name._value
+        table_name_raw = extract_raw_name(self.table_name)
+        schema_name_raw = extract_raw_name(schema_name)
             
         return {
             "type": "table",
             "data_asset_name": self.name,
-            "table_name": str(table_name_raw),
-            "schema_name": str(schema_name_raw) if schema_name_raw else None,
+            "table_name": table_name_raw,
+            "schema_name": schema_name_raw,
             "batch_identifiers": {},
         }
 
