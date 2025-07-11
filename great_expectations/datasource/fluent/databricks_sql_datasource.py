@@ -213,16 +213,22 @@ class DatabricksTableAsset(SqlTableAsset):
     def _create_batch_spec_kwargs(self) -> dict[str, Any]:
         """Override to handle quoted_name objects properly for Databricks."""
         from typing import Any
+        import logging
+        
+        logger = logging.getLogger(__name__)
         
         # Use fallback logic like qualified_name and as_selectable
         schema_name = self.schema_name
         if schema_name is None and hasattr(self.datasource, 'schema_') and self.datasource.schema_:
             schema_name = self.datasource.schema_
-            
+        
+        table_name_str = str(self.table_name)
+        logger.warning(f"DATABRICKS DEBUG: table_name={self.table_name!r}, str(table_name)='{table_name_str}'")
+        
         return {
             "type": "table",
             "data_asset_name": self.name,
-            "table_name": str(self.table_name),
+            "table_name": table_name_str,
             "schema_name": str(schema_name) if schema_name else None,
             "batch_identifiers": {},
         }
