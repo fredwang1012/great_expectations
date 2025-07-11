@@ -162,7 +162,7 @@ class DatabricksTableAsset(SqlTableAsset):
                 clean_table_name = table_name_str.strip('"').strip("'").strip("`")
                 return sqlalchemy.quoted_name(
                     value=clean_table_name,
-                    quote=True,
+                    quote='`',
                 )
             else:
                 # Standard table that doesn't need special escaping
@@ -199,7 +199,7 @@ class DatabricksTableAsset(SqlTableAsset):
                 clean_schema_name = schema_name_str.strip('"').strip("'").strip("`")
                 return sqlalchemy.quoted_name(
                     value=clean_schema_name,
-                    quote=True,
+                    quote='`',
                 )
             else:
                 # Standard schema that doesn't need special escaping
