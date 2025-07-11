@@ -25,6 +25,8 @@ from great_expectations.datasource.fluent.sql_datasource import (
 from great_expectations.datasource.fluent.sql_datasource import (
     TableAsset as SqlTableAsset,
 )
+from great_expectations.execution_engine import SqlAlchemyExecutionEngine
+from great_expectations.core.batch_spec import BatchSpec
 
 if TYPE_CHECKING:
     from sqlalchemy.sql import quoted_name  # noqa: TID251 # type-checking only
@@ -267,6 +269,66 @@ class DatabricksTableAsset(SqlTableAsset):
         return target.startswith("`") and target.endswith("`")
 
 
+class DatabricksExecutionEngine(SqlAlchemyExecutionEngine):
+    """Custom execution engine for Databricks that handles special table name quoting."""
+    
+    def _subselectable(self, batch_spec: BatchSpec) -> sqlalchemy.Selectable:
+        """Override to handle Databricks-specific table name quoting."""
+        from great_expectations.compatibility.sqlalchemy import sqlalchemy as sa
+        
+        table_name = batch_spec.get("table_name")
+        query = batch_spec.get("query")
+        selectable: sqlalchemy.Selectable
+        
+        if table_name:
+            schema_name = batch_spec.get("schema_name", None)
+            
+            # Handle Databricks table name quoting
+            if self.dialect_name == "databricks":
+                import re
+                
+                # Convert table_name to string and check if it needs Databricks backticks
+                table_name_str = str(table_name)
+                clean_table_name = table_name_str.strip('"').strip("'").strip("`")
+                
+                # Check if needs special quoting
+                needs_quoting = (
+                    re.match(r"^\d", clean_table_name) or 
+                    re.search(r"[.\s\-#@]", clean_table_name)
+                )
+                
+                if needs_quoting:
+                    # For Databricks, create table with properly quoted name
+                    from great_expectations.compatibility import sqlalchemy
+                    if sqlalchemy.quoted_name:
+                        table_name = sqlalchemy.quoted_name(f"`{clean_table_name}`", quote=False)
+                
+                # Handle schema similarly
+                if schema_name:
+                    schema_name_str = str(schema_name)
+                    clean_schema_name = schema_name_str.strip('"').strip("'").strip("`")
+                    
+                    needs_schema_quoting = (
+                        re.match(r"^\d", clean_schema_name) or 
+                        re.search(r"[.\s\-#@]", clean_schema_name)
+                    )
+                    
+                    if needs_schema_quoting:
+                        from great_expectations.compatibility import sqlalchemy
+                        if sqlalchemy.quoted_name:
+                            schema_name = sqlalchemy.quoted_name(f"`{clean_schema_name}`", quote=False)
+            
+            selectable = sa.table(table_name, schema=schema_name)
+        else:
+            if not isinstance(query, str):
+                raise ValueError(f"SQL query should be a str but got {query}")
+            selectable = sa.select(
+                sa.text(query.lstrip()[6:].strip().rstrip(";").rstrip())
+            ).subquery()
+
+        return selectable
+
+
 @public_api
 class DatabricksSQLDatasource(SQLDatasource):
     """Adds a DatabricksSQLDatasource to the data context.
@@ -288,6 +350,12 @@ class DatabricksSQLDatasource(SQLDatasource):
     # These are instance var because ClassVars can't contain Type variables. See
     # https://peps.python.org/pep-0526/#class-and-instance-variable-annotations
     _TableAsset: Type[SqlTableAsset] = pydantic.PrivateAttr(DatabricksTableAsset)
+
+    @property
+    @override
+    def execution_engine_type(self) -> Type[DatabricksExecutionEngine]:
+        """Returns the Databricks-specific execution engine type."""
+        return DatabricksExecutionEngine
 
     @override
     def test_connection(self, test_assets: bool = True) -> None:
