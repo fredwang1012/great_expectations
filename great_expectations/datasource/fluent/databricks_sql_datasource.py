@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import re
 from typing import TYPE_CHECKING, ClassVar, List, Literal, Type, Union, overload
 from urllib import parse
 
 from great_expectations._docs_decorators import public_api
 from great_expectations.compatibility import pydantic
+from great_expectations.compatibility import sqlalchemy
 from great_expectations.compatibility.pydantic import AnyUrl
 from great_expectations.compatibility.sqlalchemy import (
     sqlalchemy as sa,
@@ -28,7 +30,6 @@ from great_expectations.datasource.fluent.sql_datasource import (
 if TYPE_CHECKING:
     from sqlalchemy.sql import quoted_name  # noqa: TID251 # type-checking only
 
-    from great_expectations.compatibility import sqlalchemy
     from great_expectations.compatibility.pydantic.networks import Parts
     from great_expectations.core.config_provider import _ConfigurationProvider
 
@@ -139,46 +140,66 @@ class DatabricksTableAsset(SqlTableAsset):
     @pydantic.validator("table_name")
     @override
     def _resolve_quoted_name(cls, table_name: str) -> str | quoted_name:
-        """Resolve quoted names and handle Databricks backtick notation for special table names."""
-        import logging
-        import re
+        """Resolve quoted names and handle Databricks special table names.
         
-        from great_expectations.compatibility import sqlalchemy
-        from great_expectations.execution_engine.sqlalchemy_dialect import (
-            GXSqlDialect,
-            wrap_identifier,
-        )
-
-        logger = logging.getLogger(__name__)
-        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Processing table_name={table_name!r} (type: {type(table_name)})")
-
+        With databricks-sqlalchemy installed, returning quoted_name(quote=True)
+        ensures the Databricks dialect uses backticks for special identifiers.
+        """
         # If it's already a quoted_name object, return as-is
-        if sqlalchemy.quoted_name and isinstance(table_name, sqlalchemy.quoted_name):
-            logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Already quoted_name object: {table_name}")
-            return table_name
+        if hasattr(sqlalchemy, 'quoted_name') and hasattr(table_name, '__class__'):  # type: ignore[truthy-function]
+            if table_name.__class__.__name__ == 'quoted_name':
+                return table_name
 
         # Check if table name is already quoted with backticks
         table_name_is_quoted = cls._is_bracketed_by_quotes(table_name)
-        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Is already quoted: {table_name_is_quoted}")
+        if table_name_is_quoted:
+            # Remove backticks and create a quoted_name object
+            clean_name = table_name.strip("`")
+            return sqlalchemy.quoted_name(clean_name, quote=True)
 
         # Check if table name needs special quoting for Databricks
-        needs_backticks = cls._needs_databricks_backticks(table_name)
-        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Needs backticks: {needs_backticks}")
+        needs_quoting = cls._needs_databricks_backticks(table_name)
+        if needs_quoting:
+            # Strip any existing quotes first
+            clean_name = table_name.strip('"').strip("'").strip("`")
+            # Return quoted_name object - let the Databricks dialect handle backticks
+            return sqlalchemy.quoted_name(clean_name, quote=True)
 
-        if sqlalchemy.quoted_name:  # type: ignore[truthy-function] # FIXME CoP
-            if table_name_is_quoted or needs_backticks:
-                # Use GX's wrap_identifier which handles Databricks dialect correctly
-                result = wrap_identifier(table_name, dialect=GXSqlDialect.DATABRICKS)
-                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Using GX wrap_identifier -> {result!r}")
-                return result
-            else:
-                # Standard table name - no quoting needed
-                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Standard name -> {table_name!r}")
-                return table_name
-
-        # Fallback if quoted_name not available
-        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: No quoted_name support -> {table_name!r}")
+        # Standard table name - no special quoting needed
         return table_name
+
+    @pydantic.validator("schema_name")
+    def _resolve_quoted_schema_name(cls, schema_name: str | None) -> str | quoted_name | None:
+        """Resolve quoted names and handle Databricks special schema names.
+        
+        With databricks-sqlalchemy installed, returning quoted_name(quote=True)
+        ensures the Databricks dialect uses backticks for special identifiers.
+        """
+        if schema_name is None:
+            return schema_name
+            
+        # If it's already a quoted_name object, return as-is
+        if hasattr(sqlalchemy, 'quoted_name') and hasattr(schema_name, '__class__'):  # type: ignore[truthy-function]
+            if schema_name.__class__.__name__ == 'quoted_name':
+                return schema_name
+
+        # Check if schema name is already quoted with backticks
+        schema_name_is_quoted = cls._is_bracketed_by_quotes(schema_name)
+        if schema_name_is_quoted:
+            # Remove backticks and create a quoted_name object
+            clean_name = schema_name.strip("`")
+            return sqlalchemy.quoted_name(clean_name, quote=True)
+
+        # Check if schema name needs special quoting for Databricks
+        needs_quoting = cls._needs_databricks_backticks(schema_name)
+        if needs_quoting:
+            # Strip any existing quotes first
+            clean_name = schema_name.strip('"').strip("'").strip("`")
+            # Return quoted_name object - let the Databricks dialect handle backticks
+            return sqlalchemy.quoted_name(clean_name, quote=True)
+
+        # Standard schema name - no special quoting needed
+        return schema_name
 
     @staticmethod
     def _needs_databricks_backticks(table_name: str) -> bool:
@@ -189,8 +210,6 @@ class DatabricksTableAsset(SqlTableAsset):
         - Contain spaces, hyphens, dots, hash, or @ symbols
         - Are already quoted (handled separately)
         """
-        import re
-        
         # Don't process already-quoted names
         if table_name.startswith("`") and table_name.endswith("`"):
             return False
