@@ -144,6 +144,10 @@ class DatabricksTableAsset(SqlTableAsset):
         import re
         
         from great_expectations.compatibility import sqlalchemy
+        from great_expectations.execution_engine.sqlalchemy_dialect import (
+            GXSqlDialect,
+            wrap_identifier,
+        )
 
         logger = logging.getLogger(__name__)
         logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Processing table_name={table_name!r} (type: {type(table_name)})")
@@ -162,19 +166,11 @@ class DatabricksTableAsset(SqlTableAsset):
         logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Needs backticks: {needs_backticks}")
 
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function] # FIXME CoP
-            if table_name_is_quoted:
-                # Already quoted - strip the backticks and recreate as quoted_name
-                clean_name = table_name.strip("`")
-                result = sqlalchemy.quoted_name(value=clean_name, quote=True)
-                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Already quoted -> {result!r}")
+            if table_name_is_quoted or needs_backticks:
+                # Use GX's wrap_identifier which handles Databricks dialect correctly
+                result = wrap_identifier(table_name, dialect=GXSqlDialect.DATABRICKS)
+                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Using GX wrap_identifier -> {result!r}")
                 return result
-            
-            elif needs_backticks:
-                # Needs quoting - create quoted_name with quote=True
-                result = sqlalchemy.quoted_name(value=table_name, quote=True)
-                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Needs quoting -> {result!r}")
-                return result
-            
             else:
                 # Standard table name - no quoting needed
                 logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Standard name -> {table_name!r}")
