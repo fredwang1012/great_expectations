@@ -139,38 +139,87 @@ class DatabricksTableAsset(SqlTableAsset):
     @pydantic.validator("table_name")
     @override
     def _resolve_quoted_name(cls, table_name: str) -> str | quoted_name:
-        table_name_is_quoted: bool = cls._is_bracketed_by_quotes(table_name)
-
+        """Resolve quoted names and handle Databricks backtick notation for special table names."""
+        import logging
+        import re
+        
         from great_expectations.compatibility import sqlalchemy
 
+        logger = logging.getLogger(__name__)
+        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Processing table_name={table_name!r} (type: {type(table_name)})")
+
+        # If it's already a quoted_name object, return as-is
+        if sqlalchemy.quoted_name and isinstance(table_name, sqlalchemy.quoted_name):
+            logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Already quoted_name object: {table_name}")
+            return table_name
+
+        # Check if table name is already quoted with backticks
+        table_name_is_quoted = cls._is_bracketed_by_quotes(table_name)
+        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Is already quoted: {table_name_is_quoted}")
+
+        # Check if table name needs special quoting for Databricks
+        needs_backticks = cls._needs_databricks_backticks(table_name)
+        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Needs backticks: {needs_backticks}")
+
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function] # FIXME CoP
-            if isinstance(table_name, sqlalchemy.quoted_name):
+            if table_name_is_quoted:
+                # Already quoted - strip the backticks and recreate as quoted_name
+                clean_name = table_name.strip("`")
+                result = sqlalchemy.quoted_name(value=clean_name, quote=True)
+                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Already quoted -> {result!r}")
+                return result
+            
+            elif needs_backticks:
+                # Needs quoting - create quoted_name with quote=True
+                result = sqlalchemy.quoted_name(value=table_name, quote=True)
+                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Needs quoting -> {result!r}")
+                return result
+            
+            else:
+                # Standard table name - no quoting needed
+                logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: Standard name -> {table_name!r}")
                 return table_name
 
-            if table_name_is_quoted:
-                # https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.quoted_name.quote
-                # Remove the quotes and add them back using the sqlalchemy.quoted_name function
-                # TODO: We need to handle nested quotes
-                table_name = table_name.strip("`")
-
-            return sqlalchemy.quoted_name(
-                value=table_name,
-                quote=table_name_is_quoted,
-            )
+        # Fallback if quoted_name not available
+        logger.info(f"🔧 DATABRICKS TABLE VALIDATOR: No quoted_name support -> {table_name!r}")
         return table_name
+
+    @staticmethod
+    def _needs_databricks_backticks(table_name: str) -> bool:
+        """Check if a table name requires backtick quoting in Databricks.
+        
+        Databricks requires backticks for table names that:
+        - Start with a digit
+        - Contain spaces, hyphens, dots, hash, or @ symbols
+        - Are already quoted (handled separately)
+        """
+        import re
+        
+        # Don't process already-quoted names
+        if table_name.startswith("`") and table_name.endswith("`"):
+            return False
+            
+        # Check if name starts with a digit
+        if re.match(r"^\d", table_name):
+            return True
+            
+        # Check if name contains special characters that need escaping
+        if re.search(r"[.\s\-#@]", table_name):
+            return True
+            
+        return False
 
     @staticmethod
     @override
     def _is_bracketed_by_quotes(target: str) -> bool:
-        """Returns True if the target string is bracketed by quotes.
+        """Returns True if the target string is bracketed by backticks.
 
         Arguments:
-            target: A string to check if it is bracketed by quotes.
+            target: A string to check if it is bracketed by backticks.
 
         Returns:
-            True if the target string is bracketed by quotes.
+            True if the target string is bracketed by backticks.
         """
-        # TODO: what todo with regular quotes? Error? Warn? "Fix"?
         return target.startswith("`") and target.endswith("`")
 
 
