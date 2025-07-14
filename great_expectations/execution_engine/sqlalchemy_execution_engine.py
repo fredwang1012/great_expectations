@@ -553,6 +553,8 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
         Returns:
             An SqlAlchemy table/column(s) (the selectable object for obtaining data on which to compute returned in the format of an SqlAlchemy table/column(s) object)
         """  # noqa: E501 # FIXME CoP
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_domain_records] Called with domain_kwargs: {domain_kwargs}")
+        
         data_object: SqlAlchemyBatchData
 
         batch_id: Optional[str] = domain_kwargs.get("batch_id")
@@ -572,6 +574,11 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
             else:
                 raise GreatExpectationsError(f"Unable to find batch with batch_id {batch_id}")  # noqa: TRY003 # FIXME CoP
 
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_domain_records] Data object selectable type: {type(data_object.selectable)}")
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_domain_records] Data object selectable: {data_object.selectable}")
+        if hasattr(data_object.selectable, 'name'):
+            logger.debug(f"[SqlAlchemyExecutionEngine.get_domain_records] Selectable name: {data_object.selectable.name}, type: {type(data_object.selectable.name)}")
+
         selectable: sqlalchemy.Selectable
         if "table" in domain_kwargs and domain_kwargs["table"] is not None:
             # TODO: Add logic to handle record_set_name once implemented
@@ -589,6 +596,8 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
             raise ValueError("query is not currently supported by SqlAlchemyExecutionEngine")  # noqa: TRY003 # FIXME CoP
         else:
             selectable = data_object.selectable
+        
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_domain_records] Returning selectable type: {type(selectable)}")
 
         """
         If a custom query is passed, selectable will be TextClause and not formatted
@@ -760,11 +769,20 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
         Returns:
             SqlAlchemy column
         """  # noqa: E501 # FIXME CoP
+        logger.debug(f"[SqlAlchemyExecutionEngine] get_compute_domain called with domain_type: {domain_type}")
+        logger.debug(f"[SqlAlchemyExecutionEngine] domain_kwargs: {domain_kwargs}")
+        
         partitioned_domain_kwargs: PartitionDomainKwargs = self._partition_domain_kwargs(
             domain_kwargs, domain_type, accessor_keys
         )
 
         selectable: sqlalchemy.Selectable = self.get_domain_records(domain_kwargs=domain_kwargs)
+        
+        logger.debug(f"[SqlAlchemyExecutionEngine] Returned selectable type: {type(selectable)}")
+        logger.debug(f"[SqlAlchemyExecutionEngine] Selectable: {selectable}")
+        if hasattr(selectable, 'name'):
+            logger.debug(f"[SqlAlchemyExecutionEngine] Selectable name: {selectable.name}")
+            logger.debug(f"[SqlAlchemyExecutionEngine] Selectable name type: {type(selectable.name)}")
 
         return (
             selectable,
@@ -1149,8 +1167,14 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
         table_name = batch_spec.get("table_name")
         query = batch_spec.get("query")
         selectable: sqlalchemy.Selectable
+        
+        logger.debug(f"[SqlAlchemyExecutionEngine._subselectable] Called with table_name: {table_name}, schema: {batch_spec.get('schema_name')}")
+        logger.debug(f"[SqlAlchemyExecutionEngine._subselectable] Dialect name: {self.dialect_name}")
+        
         if table_name:
             selectable = sa.table(table_name, schema=batch_spec.get("schema_name", None))
+            logger.debug(f"[SqlAlchemyExecutionEngine._subselectable] Created table selectable type: {type(selectable)}")
+            logger.debug(f"[SqlAlchemyExecutionEngine._subselectable] Table name: {selectable.name}, type: {type(selectable.name)}")
         else:
             if not isinstance(query, str):
                 raise ValueError(f"SQL query should be a str but got {query}")  # noqa: TRY003 # FIXME CoP
@@ -1158,6 +1182,7 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
             selectable = sa.select(
                 sa.text(query.lstrip()[6:].strip().rstrip(";").rstrip())
             ).subquery()
+            logger.debug(f"[SqlAlchemyExecutionEngine._subselectable] Created query-based selectable")
 
         return selectable
 
@@ -1165,6 +1190,9 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
     def get_batch_data_and_markers(
         self, batch_spec: BatchSpec
     ) -> Tuple[SqlAlchemyBatchData, BatchMarkers]:
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_batch_data_and_markers] Called with batch_spec type: {type(batch_spec)}")
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_batch_data_and_markers] Batch spec contents: {batch_spec}")
+        
         if not isinstance(batch_spec, (SqlAlchemyDatasourceBatchSpec, RuntimeQueryBatchSpec)):
             raise InvalidBatchSpecError(  # noqa: TRY003 # FIXME CoP
                 f"""SqlAlchemyExecutionEngine accepts batch_spec only of type SqlAlchemyDatasourceBatchSpec or
@@ -1190,12 +1218,16 @@ class SqlAlchemyExecutionEngine(ExecutionEngine):
 
         source_schema_name: str = batch_spec.get("schema_name", None)
         source_table_name: str = batch_spec.get("table_name", None)
+        
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_batch_data_and_markers] Source table: {source_table_name}, schema: {source_schema_name}")
 
         create_temp_table: bool = batch_spec.get("create_temp_table", self._create_temp_table)
         # this is where partitioner components are added to the selectable
         selectable: sqlalchemy.Selectable = self._build_selectable_from_batch_spec(
             batch_spec=batch_spec
         )
+        
+        logger.debug(f"[SqlAlchemyExecutionEngine.get_batch_data_and_markers] Built selectable type: {type(selectable)}")
         # NOTE: what's being checked here is the presence of a `query` attribute, we could check this directly  # noqa: E501 # FIXME CoP
         # instead of doing an instance check
         if isinstance(batch_spec, RuntimeQueryBatchSpec):

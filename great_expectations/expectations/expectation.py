@@ -1757,6 +1757,10 @@ class QueryExpectation(BatchExpectation, ABC):
     """  # noqa: E501 # FIXME CoP
 
     domain_keys: ClassVar[Tuple] = ("batch_id",)
+    
+    def __init__(self, **kwargs):
+        logger.debug(f"[QueryExpectation] Initializing with kwargs: {kwargs}")
+        super().__init__(**kwargs)
 
     @override
     def validate_configuration(

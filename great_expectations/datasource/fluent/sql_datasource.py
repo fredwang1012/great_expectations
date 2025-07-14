@@ -712,6 +712,10 @@ class _SQLAsset(DataAsset[DatasourceT, ColumnPartitioner], Generic[DatasourceT])
             A BatchRequest object that can be used to obtain a batch from an Asset by calling the
             get_batch method.
         """  # noqa: E501 # FIXME CoP
+        LOGGER.debug(f"[_SQLAsset.build_batch_request] Called for asset: {self.name}")
+        if hasattr(self, 'table_name'):
+            LOGGER.debug(f"[_SQLAsset.build_batch_request] Table name: {self.table_name}, type: {type(self.table_name)}")
+        
         if options is not None and not self._batch_parameters_are_valid(
             options=options, partitioner=partitioner
         ):
@@ -1184,14 +1188,21 @@ class TableAsset(_SQLAsset):
         schema_name = self.schema_name
         if schema_name is None and hasattr(self.datasource, 'schema_') and self.datasource.schema_:
             schema_name = self.datasource.schema_
-            
-        return {
+        
+        LOGGER.debug(f"[TableAsset._create_batch_spec_kwargs] Creating batch spec for table: {self.table_name}")
+        LOGGER.debug(f"[TableAsset._create_batch_spec_kwargs] Table name type: {type(self.table_name)}")
+        LOGGER.debug(f"[TableAsset._create_batch_spec_kwargs] Schema: {schema_name}")
+        
+        batch_spec_kwargs = {
             "type": "table",
             "data_asset_name": self.name,
             "table_name": str(self.table_name),
             "schema_name": str(schema_name) if schema_name else None,
             "batch_identifiers": {},
         }
+        
+        LOGGER.debug(f"[TableAsset._create_batch_spec_kwargs] Returning: {batch_spec_kwargs}")
+        return batch_spec_kwargs
 
     @override
     def _create_batch_spec(self, batch_spec_kwargs: dict) -> SqlAlchemyDatasourceBatchSpec:
