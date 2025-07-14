@@ -311,13 +311,9 @@ class SqlAlchemyBatchData(BatchData):
         Returns:
             sqlalchemy.Table: SqlAlchemy Table that is Selectable.
         """  # noqa: E501 # FIXME CoP
-        logger.debug(f"[SqlAlchemyBatchData._generate_selectable] Called with table_name: {table_name}, type: {type(table_name)}")
-        logger.debug(f"[SqlAlchemyBatchData._generate_selectable] Schema: {schema_name}, dialect: {dialect}, use_quoted_name: {use_quoted_name}")
-        
         if use_quoted_name:
             table_name = sqlalchemy.quoted_name(table_name, quote=True)
-            logger.debug(f"[SqlAlchemyBatchData._generate_selectable] After quoted_name: {table_name}, type: {type(table_name)}")
-                
+
         if dialect == GXSqlDialect.BIGQUERY:
             if schema_name is not None:
                 logger.warning(
@@ -336,8 +332,6 @@ class SqlAlchemyBatchData(BatchData):
                 schema=schema_name,
             )
         
-        logger.debug(f"[SqlAlchemyBatchData._generate_selectable] Created Table object type: {type(table_obj)}")
-        logger.debug(f"[SqlAlchemyBatchData._generate_selectable] Table name: {table_obj.name}, type: {type(table_obj.name)}")
         return table_obj
 
     @overload

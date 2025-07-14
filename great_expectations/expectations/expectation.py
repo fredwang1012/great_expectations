@@ -1759,7 +1759,6 @@ class QueryExpectation(BatchExpectation, ABC):
     domain_keys: ClassVar[Tuple] = ("batch_id",)
     
     def __init__(self, **kwargs):
-        logger.debug(f"[QueryExpectation] Initializing with kwargs: {kwargs}")
         super().__init__(**kwargs)
 
     @override

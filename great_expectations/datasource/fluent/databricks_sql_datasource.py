@@ -148,12 +148,9 @@ class DatabricksTableAsset(SqlTableAsset):
         With databricks-sqlalchemy installed, returning quoted_name(quote=True)
         ensures the Databricks dialect uses backticks for special identifiers.
         """
-        logger.debug(f"[DatabricksTableAsset] Processing table_name: {table_name}")
-        
         # If it's already a quoted_name object, return as-is
         if hasattr(sqlalchemy, 'quoted_name') and hasattr(table_name, '__class__'):  # type: ignore[truthy-function]
             if table_name.__class__.__name__ == 'quoted_name':
-                logger.debug(f"[DatabricksTableAsset] Already a quoted_name object: {table_name}")
                 return table_name
 
         # Check if table name is already quoted with backticks
@@ -162,23 +159,19 @@ class DatabricksTableAsset(SqlTableAsset):
             # Remove backticks and create a quoted_name object
             clean_name = table_name.strip("`")
             result = sqlalchemy.quoted_name(clean_name, quote=True)
-            logger.debug(f"[DatabricksTableAsset] Was quoted with backticks, returning quoted_name: {result}")
             return result
 
         # Check if table name needs special quoting for Databricks
         needs_quoting = cls._needs_databricks_backticks(table_name)
-        logger.debug(f"[DatabricksTableAsset] Needs backticks? {needs_quoting}")
         
         if needs_quoting:
             # Strip any existing quotes first
             clean_name = table_name.strip('"').strip("'").strip("`")
             # Return quoted_name object - let the Databricks dialect handle backticks
             result = sqlalchemy.quoted_name(clean_name, quote=True)
-            logger.debug(f"[DatabricksTableAsset] Needs quoting, returning quoted_name(quote=True): {result}")
             return result
 
         # Standard table name - no special quoting needed
-        logger.debug(f"[DatabricksTableAsset] Standard table name, returning as-is: {table_name}")
         return table_name
 
     @pydantic.validator("schema_name")
