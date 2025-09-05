@@ -82,8 +82,7 @@ from great_expectations.execution_engine.partition_and_sample.sqlalchemy_data_pa
 )
 
 if TYPE_CHECKING:
-    from sqlalchemy.sql import quoted_name # noqa: TID251 # type-checking only
-    # We re-import sqlalchemy here to make type-checking and our compatability layer
+    # We re-import sqlalchemy here to make type-checking and our compatibility layer
     # play nice with one another
     from great_expectations.compatibility import sqlalchemy
     from great_expectations.core.batch_definition import BatchDefinition
@@ -636,7 +635,7 @@ class _SQLAsset(DataAsset[DatasourceT, ColumnPartitioner], Generic[DatasourceT])
         else:
             sql_partitioner = None
 
-        batch_spec_kwargs: dict[str, str | dict | None]
+        batch_spec_kwargs: Dict[str, str | dict | None]
         requests = self._fully_specified_batch_requests(batch_request)
         unsorted_metadata_dicts = [self._get_batch_metadata_from_batch_request(r) for r in requests]
 
@@ -935,7 +934,7 @@ class _SQLAsset(DataAsset[DatasourceT, ColumnPartitioner], Generic[DatasourceT])
                 f"but actually has form:\n{pf(batch_request.dict())}\n"
             )
 
-    def _create_batch_spec_kwargs(self) -> dict[str, Any]:
+    def _create_batch_spec_kwargs(self) -> Dict[str, Any]:
         """Creates batch_spec_kwargs used to instantiate a SqlAlchemyDatasourceBatchSpec or RuntimeQueryBatchSpec
 
         This is called by get_batch to generate the batch.
@@ -988,7 +987,7 @@ class QueryAsset(_SQLAsset):
         return sa.select(sa.text(self.query.lstrip()[6:])).subquery()
 
     @override
-    def _create_batch_spec_kwargs(self) -> dict[str, Any]:
+    def _create_batch_spec_kwargs(self) -> Dict[str, Any]:
         return {
             "data_asset_name": self.name,
             "query": self.query,
@@ -1018,6 +1017,8 @@ class TableAsset(_SQLAsset):
     )
     schema_name: Optional[str] = None  
 
+    _quote_character: Optional[str] = None
+
     @property
     def qualified_name(self) -> str:
         # Use asset's schema_name if set, otherwise fall back to datasource schema
@@ -1036,7 +1037,7 @@ class TableAsset(_SQLAsset):
         return validated_table_name
 
     @pydantic.validator("table_name")
-    def _resolve_quoted_name(cls, table_name: str) -> str:  # Returns str 
+    def _resolve_quoted_name(cls, table_name: str, values: Dict[str, Any]) -> str:
         """Resolve quoted names and handle MSSQL bracket notation."""
         from great_expectations.compatibility import sqlalchemy
 
@@ -1052,9 +1053,11 @@ class TableAsset(_SQLAsset):
                 # Handle different quote types
                 if table_name.startswith("[") and table_name.endswith("]"):
                     # MSSQL brackets - strip and mark as quoted
+                    values["_quote_character"] = "["
                     raw_name = table_name[1:-1]
                 else:
-                    # Standard quotes - strip them
+                    # Standard quotes - store the quote character and strip them
+                    values["_quote_character"] = table_name[0]
                     raw_name = table_name.strip("'").strip('"')
 
                 return sqlalchemy.quoted_name(value=raw_name, quote=True)
@@ -1121,6 +1124,17 @@ class TableAsset(_SQLAsset):
         return False
 
     @override
+    def dict(self, **kwargs) -> Dict[str, Any]:
+        original_dict = super().dict(**kwargs)
+
+        # we need to ensure we retain the quotes when serializing quoted names
+        qc = self._quote_character
+        if qc is not None:
+            original_dict["table_name"] = f"{qc}{self.table_name}{qc}"
+
+        return original_dict
+
+    @override
     def test_connection(self) -> None:
         """Test the connection for the TableAsset.
 
@@ -1179,13 +1193,13 @@ class TableAsset(_SQLAsset):
         return sa.table(self.table_name, schema=schema_name)
 
     @override
-    def _create_batch_spec_kwargs(self) -> dict[str, Any]:
+    def _create_batch_spec_kwargs(self) -> Dict[str, Any]:
         # Use fallback logic like qualified_name and as_selectable
         schema_name = self.schema_name
         if schema_name is None and hasattr(self.datasource, 'schema_') and self.datasource.schema_:
             schema_name = self.datasource.schema_
         
-        batch_spec_kwargs = {
+        return {
             "type": "table",
             "data_asset_name": self.name,
             "table_name": str(self.table_name),
@@ -1193,10 +1207,9 @@ class TableAsset(_SQLAsset):
             "batch_identifiers": {},
         }
         
-        return batch_spec_kwargs
-
+        
     @override
-    def _create_batch_spec(self, batch_spec_kwargs: dict) -> SqlAlchemyDatasourceBatchSpec:
+    def _create_batch_spec(self, batch_spec_kwargs: Dict) -> SqlAlchemyDatasourceBatchSpec:
         return SqlAlchemyDatasourceBatchSpec(**batch_spec_kwargs)
 
 
@@ -1249,7 +1262,7 @@ def _warn_for_more_specific_datasource_type(connection_string: str) -> None:
 
     connector: str = connection_string.split("://")[0].split("+")[0]
 
-    type_lookup_plus: dict[str, str] = {
+    type_lookup_plus: Dict[str, str] = {
         n: DataSourceManager.type_lookup[n].__name__
         for n in DataSourceManager.type_lookup.type_names()
     }
