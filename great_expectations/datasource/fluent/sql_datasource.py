@@ -14,6 +14,7 @@ from typing import (
     Generic,
     List,
     Literal,
+    Mapping,
     Optional,
     Protocol,
     Sequence,
@@ -94,8 +95,13 @@ if TYPE_CHECKING:
 
 LOGGER: Final[logging.Logger] = logging.getLogger(__name__)
 
-DEFAULT_QUOTE_CHARACTERS: Final[Tuple[str, str]] = ('"', "'")
-MSSQL_BRACKET_CHARACTERS: Final[Tuple[str, str]] = ("[", "]")
+DEFAULT_INITIAL_QUOTE_CHARACTERS: Final[Tuple[str, str, str, str]] = ('"', "'", "`", "[")
+DEFAULT_FINAL_QUOTE_CHARACTERS: Final[Mapping[str, str]] = {
+    '"': '"',
+    "'": "'",
+    "`": "`",
+    "[": "]",
+}
 
 MISSING: Final = object()  # sentinel value to indicate missing values
 
@@ -110,7 +116,7 @@ def to_lower_if_not_quoted(value: None, quote_characters: Sequence[str] = ...) -
 
 def to_lower_if_not_quoted(
     value: str | None,
-    quote_characters: Sequence[str] = DEFAULT_QUOTE_CHARACTERS,
+    quote_characters: Sequence[str] = DEFAULT_INITIAL_QUOTE_CHARACTERS,
 ) -> str | None:
     """
     Convert a string to lowercase if it is not enclosed in quotes.
@@ -121,7 +127,7 @@ def to_lower_if_not_quoted(
 
     # Check standard quotes
     for char in quote_characters:
-        if value.startswith(char) and value.endswith(char):
+        if value.startswith(char) and value.endswith(DEFAULT_FINAL_QUOTE_CHARACTERS[char]):
             LOGGER.warning(
                 f"The {value} string is bracketed by quotes,"
                 " so it will not be converted to lowercase."
@@ -1050,16 +1056,14 @@ class TableAsset(_SQLAsset):
 
         if sqlalchemy.quoted_name:  # type: ignore[truthy-function]
             if table_name_is_quoted:
-                # Handle different quote types
-                if table_name.startswith("[") and table_name.endswith("]"):
-                    # MSSQL brackets - strip and mark as quoted
-                    values["_quote_character"] = "["
-                    raw_name = table_name[1:-1]
-                else:
-                    # Standard quotes - store the quote character and strip them
-                    values["_quote_character"] = table_name[0]
-                    raw_name = table_name.strip("'").strip('"')
-
+                # https://docs.sqlalchemy.org/en/20/core/sqlelement.html#sqlalchemy.sql.expression.quoted_name.quote
+                # Remove the quotes and add them back using the sqlalchemy.quoted_name function
+                # TODO: We need to handle nested quotes
+                values["_quote_character"] = table_name[0]
+                raw_name = table_name.lstrip("".join(DEFAULT_INITIAL_QUOTE_CHARACTERS)).rstrip(
+                    "".join(DEFAULT_FINAL_QUOTE_CHARACTERS.values())
+                )
+                
                 return sqlalchemy.quoted_name(value=raw_name, quote=True)
 
             # Check if MSSQL bracket notation is needed based on content
@@ -1130,7 +1134,9 @@ class TableAsset(_SQLAsset):
         # we need to ensure we retain the quotes when serializing quoted names
         qc = self._quote_character
         if qc is not None:
-            original_dict["table_name"] = f"{qc}{self.table_name}{qc}"
+            original_dict["table_name"] = (
+                f"{qc}{self.table_name}{DEFAULT_FINAL_QUOTE_CHARACTERS[qc]}"
+            )
 
         return original_dict
 
@@ -1226,16 +1232,10 @@ class TableAsset(_SQLAsset):
         Returns:
             True if the target string is bracketed by quotes.
         """
-        # Check standard quotes
-        for quote in DEFAULT_QUOTE_CHARACTERS:
-            if target.startswith(quote) and target.endswith(quote):
-                return True
-
-        # Check MSSQL brackets
-        if target.startswith("[") and target.endswith("]"):
-            return True
-
-        return False
+        return any(
+            target.startswith(quote) and target.endswith(DEFAULT_FINAL_QUOTE_CHARACTERS[quote])
+            for quote in DEFAULT_INITIAL_QUOTE_CHARACTERS
+        )
 
     @classmethod
     def _to_lower_if_not_bracketed_by_quotes(cls, target: str) -> str:
@@ -1248,10 +1248,7 @@ class TableAsset(_SQLAsset):
         Returns:
             The target string in lowercase if it is not bracketed by quotes.
         """
-        # Include MSSQL brackets in the check
-        if cls._is_bracketed_by_quotes(target):
-            return target
-        return target.lower()
+        return to_lower_if_not_quoted(target, quote_characters=DEFAULT_INITIAL_QUOTE_CHARACTERS)
 
 
 def _warn_for_more_specific_datasource_type(connection_string: str) -> None:
