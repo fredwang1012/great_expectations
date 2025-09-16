@@ -109,7 +109,7 @@ ENV/
 ge_dev/
 gx_dev/
 .gx_dev/
-
+.claude/
 # direnv
 .envrc
 
