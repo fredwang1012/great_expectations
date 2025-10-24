@@ -38,6 +38,7 @@ from great_expectations.core import (
 from great_expectations.expectations.expectation_configuration import (
     ExpectationConfiguration,  # noqa: TC001 # FIXME CoP
 )
+from great_expectations.expectations.conditions import deserialize_row_condition
 from great_expectations.render.exceptions import RendererConfigurationError
 from great_expectations.render.renderer.observed_value_renderer import ObservedValueRenderState
 
@@ -446,7 +447,12 @@ class RendererConfiguration(pydantic_generics.GenericModel, Generic[RendererPara
         else:
             kwargs = values["configuration"].kwargs
 
-        values["_row_condition"] = kwargs.get("row_condition", "")
+        row_condition = kwargs.get("row_condition", "")
+        # Handle new Condition dict format by converting to string representation
+        if isinstance(row_condition, dict):
+            condition_obj = deserialize_row_condition(row_condition)
+            row_condition = repr(condition_obj) if condition_obj else ""
+        values["_row_condition"] = row_condition
         if values["_row_condition"]:
             renderer_params_args: Dict[str, RendererConfiguration._RendererParamArgs] = (
                 RendererConfiguration._get_row_condition_params(
