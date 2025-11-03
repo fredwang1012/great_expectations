@@ -184,6 +184,20 @@ class NullityCondition(Condition):
     column: Column
     is_null: bool
 
+    @validator("column", pre=True)
+    @classmethod
+    def _ensure_column_object(cls, v: Column | str | dict) -> Column:
+        """Convert column field to Column object if it's a string or dict.
+
+        This handles deserialization from GX Cloud where the column might be
+        provided as a plain string or dict instead of a Column object.
+        """
+        if isinstance(v, str):
+            return Column(name=v)
+        elif isinstance(v, dict):
+            return Column(**v)
+        return v  # Already a Column object
+
     @override
     def __repr__(self):
         null_str = "NULL" if self.is_null else "NOT NULL"
@@ -195,6 +209,20 @@ class ComparisonCondition(Condition):
     column: Column
     operator: Operator
     parameter: Parameter = Field(...)
+
+    @validator("column", pre=True)
+    @classmethod
+    def _ensure_column_object(cls, v: Column | str | dict) -> Column:
+        """Convert column field to Column object if it's a string or dict.
+
+        This handles deserialization from GX Cloud where the column might be
+        provided as a plain string or dict instead of a Column object.
+        """
+        if isinstance(v, str):
+            return Column(name=v)
+        elif isinstance(v, dict):
+            return Column(**v)
+        return v  # Already a Column object
 
     @root_validator
     def _validate_parameter_not_none(cls, values):
