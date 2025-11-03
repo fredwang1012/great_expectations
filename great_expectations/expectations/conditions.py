@@ -182,6 +182,64 @@ class ComparisonCondition(Condition):
             raise InvalidParameterTypeError(parameter, suggestion)
         return values
 
+    @root_validator
+    def _validate_in_set_operator_parameter(cls, values):
+        parameter = values.get("parameter")
+        operator = values.get("operator")
+        if operator in (Operator.IN, Operator.NOT_IN):
+            cls._validate_parameter_is_iterable(parameter, operator)
+            cls._validate_parameter_element_types(parameter, operator)
+        return values
+
+    @staticmethod
+    def _validate_parameter_is_iterable(parameter: Parameter, operator: Operator) -> None:
+        """Validate that parameter is an iterable (but not a string)."""
+        if not isinstance(parameter, Iterable) or isinstance(parameter, str):
+            raise InvalidParameterTypeError(
+                parameter,
+                f"For {operator} operator, parameter must be an iterable "
+                "(list, tuple, set, etc.), but not a string",
+            )
+
+    @staticmethod
+    def _validate_parameter_element_types(parameter: Iterable[Any], operator: Operator) -> None:
+        """Validate that all elements in parameter are compatible types."""
+        numeric_types = {int, float}
+        allowed_types = numeric_types | {str, bool}
+        parameter_iter = iter(parameter)
+        try:
+            first_value = next(parameter_iter)
+        except StopIteration:
+            # Empty iterable is allowed
+            return
+
+        # Check that first item is one of the allowed types
+        first_type = type(first_value)
+        if first_type not in allowed_types:
+            raise InvalidParameterTypeError(
+                parameter,
+                f"For {operator} operator, parameter values must contain only "
+                f"these types: {', '.join(t.__name__ for t in allowed_types)}. "
+                f"Found {first_type.__name__} at index 0",
+            )
+        first_is_numeric = first_type in numeric_types
+        for i, value in enumerate(parameter_iter, start=1):
+            # Check that all subsequent items match the type category of the first item
+            # Allow mixing numeric types
+            value_type = type(value)
+            if first_is_numeric:
+                is_valid = value_type in numeric_types
+            else:
+                is_valid = value_type == first_type
+            if not is_valid:
+                raise InvalidParameterTypeError(
+                    parameter,
+                    f"For {operator} operator, all items in parameter "
+                    "must be of the same type. "
+                    f"First item is {first_type.__name__}, but found "
+                    f"{value_type.__name__} at index {i}",
+                )
+
     @override
     def __repr__(self):
         col_name = self.column.name
