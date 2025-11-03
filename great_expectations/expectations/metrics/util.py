@@ -1695,10 +1695,15 @@ def get_sqlalchemy_column_metadata(  # noqa: C901 # FIXME CoP
                     schema=schema_name,
                 )
             else:
-                logger.warning("unexpected table_selectable type")
-                columns = inspector.get_columns(  # type: ignore[assignment]
-                    table_name=str(table_selectable),
-                    schema=schema_name,
+                # For Select, Subquery, or other SQLAlchemy constructs (e.g., when row conditions are applied),
+                # we cannot use inspector.get_columns() as they are not simple table names.
+                # Raise an exception to trigger the fallback mechanism that uses column reflection.
+                logger.debug(
+                    f"table_selectable is of type {type(table_selectable).__name__}, "
+                    "using column reflection fallback"
+                )
+                raise AttributeError(
+                    "Cannot introspect columns from complex query; using reflection fallback"
                 )
         except (
             KeyError,

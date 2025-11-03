@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from enum import Enum
 from typing import TYPE_CHECKING, Any, Iterable, List, Literal, Union
 
@@ -8,6 +9,8 @@ from great_expectations.compatibility.typing_extensions import override
 
 if TYPE_CHECKING:
     from typing_extensions import TypeAlias
+
+logger = logging.getLogger(__name__)
 
 
 class ConditionParserError(ValueError):
@@ -80,6 +83,31 @@ class Column(BaseModel):
 
     def __init__(self, name: str):
         super().__init__(name=name)
+
+    @validator("name", pre=True)
+    @classmethod
+    def _parse_column_name(cls, v: str) -> str:
+        """Parse column names that contain the col("...") syntax.
+
+        This handles cases where conditions are deserialized from GX Cloud with
+        unparsed column names like 'col("DeltaReturn10Year")' instead of the
+        clean name 'DeltaReturn10Year'.
+
+        Args:
+            v: The column name string, potentially containing col() syntax
+
+        Returns:
+            The clean column name without col() wrapper
+        """
+        if isinstance(v, str) and v.startswith('col("') and v.endswith('")'):
+            # Extract just the column name from col("name") syntax
+            clean_name = v[5:-2]  # Remove 'col("' from start and '")' from end
+            logger.debug(
+                f"Parsed unparsed column name from '{v}' to '{clean_name}'. "
+                "Column names should be provided without col() wrapper."
+            )
+            return clean_name
+        return v
 
     @override
     def __hash__(self) -> int:
