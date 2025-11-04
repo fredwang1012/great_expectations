@@ -61,6 +61,7 @@ from great_expectations.expectations.conditions import (
     Operator,
     PassThroughCondition,
     RowConditionType,  # Required for RowConditionType runtime validation
+    deserialize_row_condition,
     validate_row_condition,
 )
 from great_expectations.expectations.expectation_configuration import (
@@ -1733,14 +1734,22 @@ class BatchExpectation(Expectation, ABC):
     domain_type: ClassVar[MetricDomainTypes] = MetricDomainTypes.TABLE
     args_keys: ClassVar[Tuple[str, ...]] = ()
 
-    @pydantic.validator("row_condition", check_fields=False)
+    @pydantic.validator("row_condition", check_fields=False, pre=True)
     def _validate_row_condition(cls, v):
-        """Validate row_condition according to GX Cloud UI constraints.
+        """Deserialize and validate row_condition from GX Cloud data.
 
         This validator applies to all subclasses that define a row_condition field.
         check_fields=False allows this to work even though row_condition is not
         defined on BatchExpectation itself.
+
+        The validator first deserializes dict inputs into proper Condition objects
+        (which triggers the Column validators), then validates the structure.
         """
+        # First deserialize dict to Condition objects if needed
+        if isinstance(v, dict):
+            v = deserialize_row_condition(v)
+
+        # Then validate the structure (nested conditions, limits, etc.)
         return validate_row_condition(v)
 
     class Config:
