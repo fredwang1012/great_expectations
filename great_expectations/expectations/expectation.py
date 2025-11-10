@@ -88,6 +88,7 @@ from great_expectations.expectations.row_conditions import (
     PassThroughCondition,
     RowConditionType,  # Required for RowConditionType runtime validation
     validate_row_condition,
+    deserialize_row_condition,
 )
 from great_expectations.expectations.sql_tokens_and_types import (
     valid_sql_tokens_and_types,
