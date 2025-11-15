@@ -15,6 +15,48 @@ When we deprecate public functionality, we will
 
 Before we completely remove the functionality in a new major release, there will be at least one minor release that contains the deprecation so that you can smoothly transition.
 
+### 1.9.0
+* [MINORBUMP] row conditions ([#11478](https://github.com/great-expectations/great_expectations/pull/11478))
+* [MINORBUMP] Drop support for Python 3.9 ([#11501](https://github.com/great-expectations/great_expectations/pull/11501))
+* [DOCS] row conditions screenshots ([#11509](https://github.com/great-expectations/great_expectations/pull/11509))
+* [DOCS] Cloud API version for row conditions ([#11512](https://github.com/great-expectations/great_expectations/pull/11512))
+* [DOCS] minimum python version now 3.10 ([#11485](https://github.com/great-expectations/great_expectations/pull/11485))
+* [MAINTENANCE] Fix flaky validation definition test ([#11495](https://github.com/great-expectations/great_expectations/pull/11495))
+* [MAINTENANCE] Make only parameter to conditions `Column` positional ([#11497](https://github.com/great-expectations/great_expectations/pull/11497))
+* [MAINTENANCE] Add snowflake private key to ci env variables ([#11499](https://github.com/great-expectations/great_expectations/pull/11499))
+* [MAINTENANCE] Narrow iterable member types for `ComparisonCondition` with in/not in operators ([#11494](https://github.com/great-expectations/great_expectations/pull/11494))
+* [MAINTENANCE] Don't allow `bool` values in `Column.is_in( )` / `Column.is_not_in()` ([#11500](https://github.com/great-expectations/great_expectations/pull/11500))
+* [MAINTENANCE] Move Snowflake tests to key-pair auth ([#11498](https://github.com/great-expectations/great_expectations/pull/11498))
+* [MAINTENANCE] Ignore boto warning about deprecating python 3.9 support ([#11505](https://github.com/great-expectations/great_expectations/pull/11505))
+* [MAINTENANCE] Move row conditions `Column` import ([#11506](https://github.com/great-expectations/great_expectations/pull/11506))
+* [MAINTENANCE] Update root validator to always map to a Condition ([#11504](https://github.com/great-expectations/great_expectations/pull/11504))
+* [MAINTENANCE] Render multiple conditions in data docs ([#11507](https://github.com/great-expectations/great_expectations/pull/11507))
+* [MAINTENANCE] Add posthog-docusaurus plugin to enable pageview capture ([#11508](https://github.com/great-expectations/great_expectations/pull/11508))
+* [MAINTENANCE] Add Condition subclasses to public API ([#11511](https://github.com/great-expectations/great_expectations/pull/11511))
+* [MAINTENANCE] ci: add ld-dev-server ([#11510](https://github.com/great-expectations/great_expectations/pull/11510))
+* [MAINTENANCE] Delete CommonRoom script from docs - load Posthog directly ([#11514](https://github.com/great-expectations/great_expectations/pull/11514))
+* [MAINTENANCE] Update exclude list ([#11517](https://github.com/great-expectations/great_expectations/pull/11517))
+* [MAINTENANCE] Deprecate string-style `row_condition`s ([#11515](https://github.com/great-expectations/great_expectations/pull/11515))
+* [CONTRIB] Include `unexpected_index_column_names` in ExpectColumnValuesToNotBeNull results ([#11513](https://github.com/great-expectations/great_expectations/pull/11513)) (thanks @chay0112)
+
+### 1.8.1
+* [BUGFIX] Fix render_content generation with new row_condition types ([#11481](https://github.com/great-expectations/great_expectations/pull/11481))
+* [BUGFIX] Prevent unmocked HTTP requests in cloud tests ([#11492](https://github.com/great-expectations/great_expectations/pull/11492))
+* [BUGFIX] Update pytest filter to handle google.api_core Python 3.10 end-of-life warning ([#11493](https://github.com/great-expectations/great_expectations/pull/11493))
+* [DOCS] snowflake password deprecation ([#11416](https://github.com/great-expectations/great_expectations/pull/11416))
+* [DOCS] correct Snowflake private key guidance ([#11490](https://github.com/great-expectations/great_expectations/pull/11490))
+* [MAINTENANCE] Stop running python 3.12 marker tests on all PRs ([#11457](https://github.com/great-expectations/great_expectations/pull/11457))
+* [MAINTENANCE] Disable link checker ([#11477](https://github.com/great-expectations/great_expectations/pull/11477))
+* [MAINTENANCE] Transform legacy row_condition string into new Condition object ([#11474](https://github.com/great-expectations/great_expectations/pull/11474))
+* [MAINTENANCE] Keep `condition_parser` field intact for backwards compatibility ([#11484](https://github.com/great-expectations/great_expectations/pull/11484))
+* [MAINTENANCE] Replace broken bitnami image with apache image for spark ([#11444](https://github.com/great-expectations/great_expectations/pull/11444))
+* [MAINTENANCE] Ignore future warning Python 3.9 EOL ([#11486](https://github.com/great-expectations/great_expectations/pull/11486))
+* [MAINTENANCE] Add passthrough path for pandas and spark Condition parser ([#11480](https://github.com/great-expectations/great_expectations/pull/11480))
+* [MAINTENANCE] Constrain `row_condition` groups ([#11488](https://github.com/great-expectations/great_expectations/pull/11488))
+* [MAINTENANCE] Only install mssql drivers when needed ([#11489](https://github.com/great-expectations/great_expectations/pull/11489))
+* [MAINTENANCE] Use Suites v2 REST endpoints ([#11487](https://github.com/great-expectations/great_expectations/pull/11487))
+* [MAINTENANCE] Handle `None` parameter in `Condition`s ([#11491](https://github.com/great-expectations/great_expectations/pull/11491))
+
 ### 1.8.0
 * [FEATURE] Snowflake Key Pair Auth API ([#11395](https://github.com/great-expectations/great_expectations/pull/11395))
 * [BUGFIX] Row condition for Volume Expectations ([#11467](https://github.com/great-expectations/great_expectations/pull/11467))

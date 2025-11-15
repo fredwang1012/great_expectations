@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import pytest
 
-from great_expectations.expectations.conditions import (
+from great_expectations.compatibility.pydantic import ValidationError
+from great_expectations.expectations.row_conditions import (
     AndCondition,
     Column,
     ComparisonCondition,
@@ -34,72 +35,12 @@ class TestCondition:
         result = condition_a & condition_b
         assert result == AndCondition(conditions=[condition_a, condition_b])
 
-    def test_and_with_and_on_left(sef):
-        condition_a = Condition()
-        condition_b = Condition()
-        condition_c = Condition()
-
-        left_condition = AndCondition(conditions=[condition_a, condition_b])
-
-        result = left_condition & condition_c
-        assert result == AndCondition(conditions=[condition_a, condition_b, condition_c])
-
-    def test_and_with_and_on_right(sef):
-        condition_a = Condition()
-        condition_b = Condition()
-        condition_c = Condition()
-
-        right_condition = AndCondition(conditions=[condition_b, condition_c])
-
-        result = condition_a & right_condition
-        assert result == AndCondition(conditions=[condition_a, condition_b, condition_c])
-
     def test_or_with_two_conditions(sef):
         condition_a = Condition()
         condition_b = Condition()
 
         result = condition_a | condition_b
         assert result == OrCondition(conditions=[condition_a, condition_b])
-
-    def test_or_with_or_on_left(sef):
-        condition_a = Condition()
-        condition_b = Condition()
-        condition_c = Condition()
-
-        left_condition = OrCondition(conditions=[condition_a, condition_b])
-
-        result = left_condition | condition_c
-        assert result == OrCondition(conditions=[condition_a, condition_b, condition_c])
-
-    def test_or_with_or_on_right(sef):
-        condition_a = Condition()
-        condition_b = Condition()
-        condition_c = Condition()
-
-        right_condition = OrCondition(conditions=[condition_b, condition_c])
-
-        result = condition_a | right_condition
-        assert result == OrCondition(conditions=[condition_a, condition_b, condition_c])
-
-    def test_flattening_and(self):
-        """Test that OrCondition flattens nested AndConditions."""
-        cond1 = Condition()
-        cond2 = Condition()
-        cond3 = Condition()
-
-        result = cond1 & cond2 & cond3
-
-        assert result == AndCondition(conditions=[cond1, cond2, cond3])
-
-    def test_flattening_or(self):
-        """Test that OrCondition flattens nested AndConditions."""
-        cond1 = Condition()
-        cond2 = Condition()
-        cond3 = Condition()
-
-        result = cond1 | cond2 | cond3
-
-        assert result == OrCondition(conditions=[cond1, cond2, cond3])
 
 
 class TestAndCondition:
@@ -154,19 +95,19 @@ class TestOrCondition:
 
 class TestColumn:
     def test_column_hash_equal(self):
-        assert hash(Column(name="age")) == hash(Column(name="age"))
+        assert hash(Column("age")) == hash(Column("age"))
 
     def test_column_hash_not_equal(self):
-        assert hash(Column(name="age")) != hash(Column(name="city"))
+        assert hash(Column("age")) != hash(Column("city"))
 
     def test_less_than_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         result = col < 18
 
         assert result == ComparisonCondition(column=col, operator=Operator.LESS_THAN, parameter=18)
 
     def test_less_than_or_equal_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         result = col <= 18
 
         assert result == ComparisonCondition(
@@ -174,7 +115,7 @@ class TestColumn:
         )
 
     def test_equal_operator(self):
-        col = Column(name="status")
+        col = Column("status")
         result = col == "active"
 
         assert result == ComparisonCondition(
@@ -182,7 +123,7 @@ class TestColumn:
         )
 
     def test_not_equal_operator(self):
-        col = Column(name="status")
+        col = Column("status")
         result = col != "inactive"
 
         assert result == ComparisonCondition(
@@ -190,7 +131,7 @@ class TestColumn:
         )
 
     def test_greater_than_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         result = col > 65
 
         assert result == ComparisonCondition(
@@ -198,7 +139,7 @@ class TestColumn:
         )
 
     def test_greater_than_or_equal_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         result = col >= 65
 
         assert result == ComparisonCondition(
@@ -206,7 +147,7 @@ class TestColumn:
         )
 
     def test_is_in_method(self):
-        col = Column(name="status")
+        col = Column("status")
         result = col.is_in(["active", "pending", "approved"])
 
         assert result == ComparisonCondition(
@@ -214,7 +155,7 @@ class TestColumn:
         )
 
     def test_is_not_in_method(self):
-        col = Column(name="status")
+        col = Column("status")
         result = col.is_not_in(["inactive", "deleted"])
 
         assert result == ComparisonCondition(
@@ -222,13 +163,13 @@ class TestColumn:
         )
 
     def test_is_null_method(self):
-        col = Column(name="email")
+        col = Column("email")
         result = col.is_null()
 
         assert result == NullityCondition(column=col, is_null=True)
 
     def test_is_not_null_method(self):
-        col = Column(name="email")
+        col = Column("email")
         result = col.is_not_null()
 
         assert result == NullityCondition(column=col, is_null=False)
@@ -236,37 +177,37 @@ class TestColumn:
 
 class TestComparisonCondition:
     def test_repr_equal_operator(self):
-        col = Column(name="status")
+        col = Column("status")
         cond = ComparisonCondition(column=col, operator=Operator.EQUAL, parameter="active")
 
         assert repr(cond) == "status == active"
 
     def test_repr_not_equal_operator(self):
-        col = Column(name="status")
+        col = Column("status")
         cond = ComparisonCondition(column=col, operator=Operator.NOT_EQUAL, parameter="inactive")
 
         assert repr(cond) == "status != inactive"
 
     def test_repr_less_than_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         cond = ComparisonCondition(column=col, operator=Operator.LESS_THAN, parameter=18)
 
         assert repr(cond) == "age < 18"
 
     def test_repr_less_than_or_equal_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         cond = ComparisonCondition(column=col, operator=Operator.LESS_THAN_OR_EQUAL, parameter=18)
 
         assert repr(cond) == "age <= 18"
 
     def test_repr_greater_than_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         cond = ComparisonCondition(column=col, operator=Operator.GREATER_THAN, parameter=65)
 
         assert repr(cond) == "age > 65"
 
     def test_repr_greater_than_or_equal_operator(self):
-        col = Column(name="age")
+        col = Column("age")
         cond = ComparisonCondition(
             column=col, operator=Operator.GREATER_THAN_OR_EQUAL, parameter=65
         )
@@ -274,7 +215,7 @@ class TestComparisonCondition:
         assert repr(cond) == "age >= 65"
 
     def test_repr_in_operator(self):
-        col = Column(name="status")
+        col = Column("status")
         cond = ComparisonCondition(
             column=col, operator=Operator.IN, parameter=["active", "pending", "approved"]
         )
@@ -282,25 +223,31 @@ class TestComparisonCondition:
         assert repr(cond) == "status IN (active, pending, approved)"
 
     def test_repr_not_in_operator(self):
-        col = Column(name="status")
+        col = Column("status")
         cond = ComparisonCondition(
             column=col, operator=Operator.NOT_IN, parameter=["inactive", "deleted"]
         )
 
         assert repr(cond) == "status NOT_IN (inactive, deleted)"
 
+    def test_comparison_condition_with_none_parameter_raises_error(self):
+        col = Column("status")
+
+        with pytest.raises(ValidationError):
+            ComparisonCondition(column=col, operator=Operator.NOT_EQUAL, parameter=None)
+
 
 class TestNullityCondition:
     """Tests for the NullityCondition class."""
 
     def test_repr_is_null(self):
-        col = Column(name="email")
+        col = Column("email")
         cond = NullityCondition(column=col, is_null=True)
 
         assert repr(cond) == "email IS NULL"
 
     def test_repr_is_not_null(self):
-        col = Column(name="email")
+        col = Column("email")
         cond = NullityCondition(column=col, is_null=False)
 
         assert repr(cond) == "email IS NOT NULL"
@@ -311,9 +258,9 @@ class TestComplexExpressions:
 
     def test_and_has_precedence_over_or(self):
         """Test that & operator has higher precedence than | operator."""
-        col1 = Column(name="age")
-        col2 = Column(name="status")
-        col3 = Column(name="score")
+        col1 = Column("age")
+        col2 = Column("status")
+        col3 = Column("score")
 
         cond1 = col1 > 18
         cond2 = col2 == "active"
@@ -325,9 +272,9 @@ class TestComplexExpressions:
 
     def test_parentheses_override_precedence(self):
         """Test that parentheses can override operator precedence for grouping."""
-        col1 = Column(name="age")
-        col2 = Column(name="status")
-        col3 = Column(name="score")
+        col1 = Column("age")
+        col2 = Column("status")
+        col3 = Column("score")
 
         cond1 = col1 > 18
         cond2 = col2 == "active"
@@ -339,10 +286,10 @@ class TestComplexExpressions:
 
     def test_complex_nested_expression(self):
         """Test complex expression with multiple levels of nesting."""
-        age = Column(name="age")
-        status = Column(name="status")
-        score = Column(name="score")
-        email = Column(name="email")
+        age = Column("age")
+        status = Column("status")
+        score = Column("score")
+        email = Column("email")
 
         adult_and_active = (age > 18) & (status == "active")
         high_score_with_email = (score >= 80) & email.is_not_null()
@@ -360,42 +307,13 @@ class TestComplexExpressions:
             ]
         )
 
-    def test_multiple_ands_flatten(self):
-        """Test that multiple ANDs flatten into a single AndCondition."""
-        col1 = Column(name="age")
-        col2 = Column(name="status")
-        col3 = Column(name="score")
-        col4 = Column(name="city")
-
-        cond1 = col1 > 18
-        cond2 = col2 == "active"
-        cond3 = col3 >= 80
-        cond4 = col4 == "NYC"
-
-        result = cond1 & cond2 & cond3 & cond4
-
-        assert result == AndCondition(conditions=[cond1, cond2, cond3, cond4])
-
-    def test_multiple_ors_flatten(self):
-        """Test that multiple ORs flatten into a single OrCondition."""
-        col1 = Column(name="status")
-
-        cond1 = col1 == "active"
-        cond2 = col1 == "pending"
-        cond3 = col1 == "approved"
-        cond4 = col1 == "verified"
-
-        result = cond1 | cond2 | cond3 | cond4
-
-        assert result == OrCondition(conditions=[cond1, cond2, cond3, cond4])
-
 
 class TestConditionSerialization:
     """Tests for serialization (converting Condition objects to dicts)."""
 
     def test_comparison_condition_serialization(self):
         """Test that ComparisonCondition serializes to the expected dict."""
-        col = Column(name="age")
+        col = Column("age")
         cond = ComparisonCondition(column=col, operator=Operator.LESS_THAN, parameter=18)
 
         result = cond.dict(exclude_defaults=True)
@@ -409,7 +327,7 @@ class TestConditionSerialization:
 
     def test_nullity_condition_serialization(self):
         """Test that NullityCondition serializes to the expected dict."""
-        col = Column(name="email")
+        col = Column("email")
         cond = NullityCondition(column=col, is_null=True)
 
         result = cond.dict(exclude_defaults=True)
@@ -422,7 +340,7 @@ class TestConditionSerialization:
 
     def test_and_condition_serialization(self):
         """Test that AndCondition serializes to the expected dict with nested conditions."""
-        col = Column(name="quantity")
+        col = Column("quantity")
         cond1 = ComparisonCondition(column=col, operator=Operator.GREATER_THAN, parameter=0)
         cond2 = ComparisonCondition(column=col, operator=Operator.LESS_THAN, parameter=10)
         and_cond = AndCondition(conditions=[cond1, cond2])
@@ -449,7 +367,7 @@ class TestConditionSerialization:
 
     def test_or_condition_serialization(self):
         """Test that OrCondition serializes to the expected dict with nested conditions."""
-        col = Column(name="status")
+        col = Column("status")
         cond1 = ComparisonCondition(column=col, operator=Operator.EQUAL, parameter="active")
         cond2 = ComparisonCondition(column=col, operator=Operator.EQUAL, parameter="pending")
         or_cond = OrCondition(conditions=[cond1, cond2])
@@ -490,7 +408,7 @@ class TestConditionDeserialization:
         result = deserialize_row_condition(cond_dict)
 
         expected = ComparisonCondition(
-            column=Column(name="age"), operator=Operator.LESS_THAN, parameter=18
+            column=Column("age"), operator=Operator.LESS_THAN, parameter=18
         )
         assert result == expected
 
@@ -504,7 +422,7 @@ class TestConditionDeserialization:
 
         result = deserialize_row_condition(cond_dict)
 
-        expected = NullityCondition(column=Column(name="email"), is_null=True)
+        expected = NullityCondition(column=Column("email"), is_null=True)
         assert result == expected
 
     def test_deserialize_nullity_condition_is_not_null(self):
@@ -517,7 +435,7 @@ class TestConditionDeserialization:
 
         result = deserialize_row_condition(cond_dict)
 
-        expected = NullityCondition(column=Column(name="email"), is_null=False)
+        expected = NullityCondition(column=Column("email"), is_null=False)
         assert result == expected
 
     def test_deserialize_and_condition(self):
@@ -542,7 +460,7 @@ class TestConditionDeserialization:
 
         result = deserialize_row_condition(cond_dict)
 
-        col = Column(name="quantity")
+        col = Column("quantity")
         expected = AndCondition(
             conditions=[
                 ComparisonCondition(column=col, operator=Operator.GREATER_THAN, parameter=0),
@@ -573,7 +491,7 @@ class TestConditionDeserialization:
 
         result = deserialize_row_condition(cond_dict)
 
-        col = Column(name="status")
+        col = Column("status")
         expected = OrCondition(
             conditions=[
                 ComparisonCondition(column=col, operator=Operator.EQUAL, parameter="active"),
@@ -615,8 +533,8 @@ class TestConditionDeserialization:
 
         result = deserialize_row_condition(cond_dict)
 
-        age = Column(name="age")
-        status = Column(name="status")
+        age = Column("age")
+        status = Column("status")
         expected = OrCondition(
             conditions=[
                 AndCondition(
@@ -678,7 +596,7 @@ class TestConditionRoundTrip:
 
     def test_and_condition_round_trip(self):
         """Test round-trip serialization/deserialization preserves condition structure."""
-        col = Column(name="quantity")
+        col = Column("quantity")
         original = AndCondition(
             conditions=[
                 ComparisonCondition(column=col, operator=Operator.GREATER_THAN, parameter=0),

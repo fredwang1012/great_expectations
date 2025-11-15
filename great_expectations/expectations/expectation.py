@@ -53,18 +53,12 @@ from great_expectations.exceptions import (
     InvalidExpectationConfigurationError,
     InvalidExpectationKwargsError,
 )
-from great_expectations.expectations.conditions import (
-    Column,
-    ComparisonCondition,
-    Condition,
-    NullityCondition,
-    Operator,
-    PassThroughCondition,
-    RowConditionType,  # Required for RowConditionType runtime validation
-)
 from great_expectations.expectations.expectation_configuration import (
     ExpectationConfiguration,
     parse_result_format,
+)
+from great_expectations.expectations.legacy_row_conditions import (
+    parse_great_expectations_condition,
 )
 from great_expectations.expectations.metadata_types import FailureSeverity
 from great_expectations.expectations.model_field_descriptions import (
@@ -77,8 +71,6 @@ from great_expectations.expectations.model_field_descriptions import (
 from great_expectations.expectations.model_field_types import (
     CONDITION_PARSER_GREAT_EXPECTATIONS,
     CONDITION_PARSER_GREAT_EXPECTATIONS_DEPRECATED,
-    CONDITION_PARSER_PANDAS,
-    CONDITION_PARSER_SPARK,
     ConditionParser,
     MostlyField,
 )
@@ -88,7 +80,14 @@ from great_expectations.expectations.registry import (
     register_renderer,
 )
 from great_expectations.expectations.row_conditions import (
-    parse_great_expectations_condition,
+    Column,
+    ComparisonCondition,
+    Condition,
+    NullityCondition,
+    Operator,
+    PassThroughCondition,
+    RowConditionType,  # Required for RowConditionType runtime validation
+    validate_row_condition,
 )
 from great_expectations.expectations.sql_tokens_and_types import (
     valid_sql_tokens_and_types,
@@ -311,7 +310,7 @@ def _convert_string_to_condition(row_condition: str) -> Condition:
         - Numeric comparisons: Matches numbers as "fnumber"
     """
     parsed = parse_great_expectations_condition(row_condition)
-    col = Column(name=str(parsed["column"]))
+    col = Column(str(parsed["column"]))
 
     if "notnull" in parsed and parsed["notnull"] is True:
         return NullityCondition(
@@ -532,17 +531,32 @@ class Expectation(pydantic.BaseModel, metaclass=MetaExpectation):
                 CONDITION_PARSER_GREAT_EXPECTATIONS_DEPRECATED,
             ]
         )
-        if isinstance(row_condition, str) and is_great_expectations_condition_parser:
-            condition_obj = _convert_string_to_condition(row_condition)
-            values["row_condition"] = condition_obj
 
-        # Transform pandas/spark parser row_condition strings to PassThroughCondition
-        is_pass_through_condition_parser = condition_parser is not None and condition_parser in [
-            CONDITION_PARSER_PANDAS,
-            CONDITION_PARSER_SPARK,
-        ]
-        if isinstance(row_condition, str) and is_pass_through_condition_parser:
-            values["row_condition"] = PassThroughCondition(pass_through_filter=row_condition)
+        # Warn if condition_parser is provided
+        if condition_parser is not None:
+            warnings.warn(
+                "The condition_parser parameter is deprecated as of GX Core 1.9.0 "
+                "and will be removed in GX Core 2.0. Please use Condition objects "
+                "(e.g., Column('column_name') > 0) instead of string-based row conditions.",
+                DeprecationWarning,  # deprecated-v1.9.0
+                stacklevel=2,
+            )
+
+        # Warn if row_condition is a string
+        if isinstance(row_condition, str):
+            warnings.warn(
+                "Passing a string to the row_condition parameter is deprecated as of GX Core 1.9.0 "
+                "and will be removed in GX Core 2.0. Please use Condition objects "
+                "(e.g., Column('column_name') > 0) instead of string-based row conditions.",
+                DeprecationWarning,  # deprecated-v1.9.0
+                stacklevel=2,
+            )
+            if is_great_expectations_condition_parser:
+                condition_obj = _convert_string_to_condition(row_condition)
+                values["row_condition"] = condition_obj
+
+            else:
+                values["row_condition"] = PassThroughCondition(pass_through_filter=row_condition)
 
         return values
 
@@ -1731,6 +1745,16 @@ class BatchExpectation(Expectation, ABC):
     metric_dependencies: ClassVar[Tuple[str, ...]] = ()
     domain_type: ClassVar[MetricDomainTypes] = MetricDomainTypes.TABLE
     args_keys: ClassVar[Tuple[str, ...]] = ()
+
+    @pydantic.validator("row_condition", check_fields=False)
+    def _validate_row_condition(cls, v):
+        """Validate row_condition according to GX Cloud UI constraints.
+
+        This validator applies to all subclasses that define a row_condition field.
+        check_fields=False allows this to work even though row_condition is not
+        defined on BatchExpectation itself.
+        """
+        return validate_row_condition(v)
 
     class Config:
         @staticmethod
@@ -3056,3 +3080,30 @@ def parse_value_to_observed_type(observed_value: Any, value: Any) -> Any:
 
     # For other types, no special handling needed
     return value
+
+
+def _style_row_condition(
+    row_condition: str,
+    template_str: str,
+    params: dict,
+    styling: Optional[dict] = None,
+) -> tuple[str, dict]:
+    """
+    Style the row condition by adding a "condition_content" parameter
+    to the params and styling dictionary.
+
+    Args:
+        row_condition: The row condition string.
+        template_str: The template string.
+        params: The params dictionary.
+        styling: The styling dictionary.
+
+    Returns:
+        A tuple of (styled_template_string, styling_dictionary).
+    """
+    params.setdefault("condition_content", row_condition)
+    styling = styling or {}
+    styling.setdefault("params", {})["condition_content"] = {
+        "classes": ["badge", "badge-secondary"]
+    }
+    return "If $condition_content, then " + template_str, styling
